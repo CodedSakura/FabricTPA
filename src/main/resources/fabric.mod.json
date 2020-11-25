@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "fabric-tpa",
+  "version": "${version}",
+  "name": "FabricTPA",
+  "description": "",
+  "authors": [
+    "CodedSakura"
+  ],
+  "contact": {
+    "website": "codedsakura.eu"
+  },
+  "license": "ISC",
+  "icon": "assets/fabricTPA/icon.png",
+  "environment": "server",
+  "entrypoints": {
+    "main": [
+      "eu.codedsakura.fabrictpa.FabricTPA"
+    ]
+  },
+  "mixins": [],
+  "depends": {
+    "fabricloader": ">=0.10.8",
+    "fabric": "*",
+    "minecraft": "1.16.x"
+  }
+}
