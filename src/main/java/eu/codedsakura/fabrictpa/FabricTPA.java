@@ -6,6 +6,10 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.gamerule.v1.GameRuleFactory;
+import net.fabricmc.fabric.api.gamerule.v1.GameRuleRegistry;
+import net.fabricmc.fabric.api.gamerule.v1.rule.DoubleRule;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -14,10 +18,13 @@ import net.minecraft.text.HoverEvent;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.util.Formatting;
-import org.lwjgl.system.CallbackI;
+import net.minecraft.world.GameRules;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static net.minecraft.command.argument.EntityArgumentType.getPlayer;
 import static net.minecraft.server.command.CommandManager.argument;
@@ -25,45 +32,86 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 public class FabricTPA implements ModInitializer {
     private static final ArrayList<TPARequest> activeTPA = new ArrayList<>();
-    protected static final long TPA_TIMEOUT_SECONDS = 60;
+    protected static double tpaTimeoutSeconds = 60;
+    protected static double tpaStandStillSeconds = 5;
+
+    @Nullable
+    private static CompletableFuture<Suggestions> getSuggestionsFromActiveTargets(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder, ServerCommandSource scs, List<String> activeTargets) {
+        List<String> others = Arrays.stream(scs.getMinecraftServer().getPlayerNames())
+                .filter(s -> !s.equals(scs.getName()) && !activeTargets.contains(s))
+                .collect(Collectors.toList());
+        if (context.getNodes().size() == 2) {
+            String start = context.getNodes().get(1).getRange().get(context.getInput()).toLowerCase();
+            others.stream().filter(s -> s.toLowerCase().startsWith(start)).forEach(builder::suggest);
+            return builder.buildFuture();
+        } else if (context.getNodes().size() == 1 && context.getInput().endsWith(" ")) {
+            others.forEach(builder::suggest);
+            return builder.buildFuture();
+        }
+        return null;
+    }
 
     private static CompletableFuture<Suggestions> getTPAInitSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
-        return null;
+        ServerCommandSource scs = context.getSource();
+
+        List<String> activeTargets = Stream.concat(
+                activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().asString()),
+                activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().asString())
+        ).collect(Collectors.toList());
+        return getSuggestionsFromActiveTargets(context, builder, scs, activeTargets);
     }
 
     private static CompletableFuture<Suggestions> getTPATargetSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
-        return null;
+        ServerCommandSource scs = context.getSource();
+
+        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().asString()).collect(Collectors.toList());
+        return getSuggestionsFromActiveTargets(context, builder, scs, activeTargets);
     }
 
-    private static CompletableFuture<Suggestions> getTPASenderSuggestions(CommandContext<ServerCommandSource> serverCommandSourceCommandContext, SuggestionsBuilder suggestionsBuilder) {
-        return null;
+    private static CompletableFuture<Suggestions> getTPASenderSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
+        ServerCommandSource scs = context.getSource();
+
+        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().asString()).collect(Collectors.toList());
+        return getSuggestionsFromActiveTargets(context, builder, scs, activeTargets);
     }
 
     @Override
     public void onInitialize() {
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
             dispatcher.register(literal("tpa").then(
-                    argument("target", EntityArgumentType.player())//.suggests(FabricTPA::getTPAInitSuggestions)
+                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPAInitSuggestions)
                             .executes(ctx -> tpaInit(ctx, getPlayer(ctx, "target")))));
 
             dispatcher.register(literal("tpahere").then(
-                    argument("target", EntityArgumentType.player())//.suggests(FabricTPA::getTPAInitSuggestions)
+                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPAInitSuggestions)
                             .executes(ctx -> tpaHere(ctx, getPlayer(ctx, "target")))));
 
             dispatcher.register(literal("tpaaccept").then(
-                    argument("target", EntityArgumentType.player())//.suggests(FabricTPA::getTPATargetSuggestions)
+                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPATargetSuggestions)
                             .executes(ctx -> tpaAccept(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaAccept(ctx, null)));
 
             dispatcher.register(literal("tpadeny").then(
-                    argument("target", EntityArgumentType.player())//.suggests(FabricTPA::getTPATargetSuggestions)
+                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPATargetSuggestions)
                             .executes(ctx -> tpaDeny(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaDeny(ctx, null)));
 
             dispatcher.register(literal("tpacancel").then(
-                    argument("target", EntityArgumentType.player())//.suggests(FabricTPA::getTPASenderSuggestions)
+                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPASenderSuggestions)
                             .executes(ctx -> tpaCancel(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaCancel(ctx, null)));
+        });
+
+
+        GameRules.Key<DoubleRule> tpaTimeout = GameRuleRegistry.register("tpaTimeout", GameRules.Category.PLAYER,
+                GameRuleFactory.createDoubleRule(60,  1, (minecraftServer, doubleRule) -> tpaTimeoutSeconds = doubleRule.get()));
+
+        GameRules.Key<DoubleRule> tpaStandStillTime = GameRuleRegistry.register("tpaStandStillTime", GameRules.Category.PLAYER,
+                GameRuleFactory.createDoubleRule(5, 0, (minecraftServer, doubleRule) -> tpaStandStillSeconds = doubleRule.get()));
+
+        ServerLifecycleEvents.SERVER_STARTED.register(minecraftServer -> {
+            tpaTimeoutSeconds = minecraftServer.getGameRules().get(tpaTimeout).get();
+            tpaStandStillSeconds = minecraftServer.getGameRules().get(tpaStandStillTime).get();
         });
     }
 
@@ -95,7 +143,7 @@ public class FabricTPA implements ModInitializer {
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + tTo.getName().asString()))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpacancel " + tTo.getName().asString())))
                                         .withColor(Formatting.GOLD)))
-                        .append(new LiteralText("\nThis request will timeout in " + TPA_TIMEOUT_SECONDS + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
+                        .append(new LiteralText("\nThis request will timeout in " + tpaTimeoutSeconds + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
 
         tTo.sendMessage(
@@ -111,7 +159,7 @@ public class FabricTPA implements ModInitializer {
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + tFrom.getName().asString()))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpadeny " + tFrom.getName().asString())))
                                         .withColor(Formatting.GOLD)))
-                        .append(new LiteralText("\nThis request will timeout in " + TPA_TIMEOUT_SECONDS + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
+                        .append(new LiteralText("\nThis request will timeout in " + tpaTimeoutSeconds + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
         return 1;
     }
@@ -144,7 +192,7 @@ public class FabricTPA implements ModInitializer {
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + tFrom.getName().asString()))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpacancel " + tFrom.getName().asString())))
                                         .withColor(Formatting.GOLD)))
-                        .append(new LiteralText("\nThis request will timeout in " + TPA_TIMEOUT_SECONDS + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
+                        .append(new LiteralText("\nThis request will timeout in " + tpaTimeoutSeconds + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
 
         tFrom.sendMessage(
@@ -160,7 +208,7 @@ public class FabricTPA implements ModInitializer {
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + tTo.getName().asString()))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpadeny " + tTo.getName().asString())))
                                         .withColor(Formatting.GOLD)))
-                        .append(new LiteralText("\nThis request will timeout in " + TPA_TIMEOUT_SECONDS + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
+                        .append(new LiteralText("\nThis request will timeout in " + tpaTimeoutSeconds + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
         return 1;
     }
@@ -205,7 +253,7 @@ public class FabricTPA implements ModInitializer {
         TPARequest tr = getTPARequest(rFrom, rTo);
         if (tr == null) return 1;
         Timer timer = new Timer();
-        final int[] counter = {5};
+        final double[] counter = {tpaStandStillSeconds};
         final PlayerPos lastPos = PlayerPos.getFromPlayer(tr.tFrom);
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
@@ -219,17 +267,17 @@ public class FabricTPA implements ModInitializer {
                 PlayerPos currPos = PlayerPos.getFromPlayer(tr.tFrom);
 
                 if (lastPos.equals(currPos)) {
-                    counter[0]--;
+                    counter[0] -= .25;
                 } else {
                     lastPos.updatePos(currPos);
-                    counter[0] = 4;
+                    counter[0] = tpaStandStillSeconds - 1;
                 }
 
                 tr.tFrom.sendMessage(new LiteralText("Stand still for ").formatted(Formatting.LIGHT_PURPLE)
-                        .append(new LiteralText(Integer.toString(counter[0]+1)).formatted(Formatting.GOLD))
+                        .append(new LiteralText(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
                         .append(new LiteralText(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
             }
-        }, 0, 1000);
+        }, 0, 250);
         tr.cancelTimeout();
         activeTPA.remove(tr);
         tr.rTo.sendMessage(new LiteralText("You have accepted the teleport request!"), false);
@@ -403,6 +451,14 @@ public class FabricTPA implements ModInitializer {
         @Override
         public int hashCode() {
             return Objects.hash(x, y, z);
+        }
+
+        @Override
+        public String toString() {
+            return "PlayerPos{" + "x=" + x +
+                    ", y=" + y +
+                    ", z=" + z +
+                    '}';
         }
     }
 }
