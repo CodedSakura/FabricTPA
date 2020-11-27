@@ -22,6 +22,7 @@ import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameRules;
 import org.jetbrains.annotations.Nullable;
 
@@ -258,7 +259,7 @@ public class FabricTPA implements ModInitializer {
         if (tr == null) return 1;
         Timer timer = new Timer();
         final double[] counter = {tpaStandStillSeconds};
-        final PlayerPos lastPos = PlayerPos.getFromPlayer(tr.tFrom);
+        final Vec3d[] lastPos = {tr.tFrom.getPos()};
         CommandBossBar standStillBar = rTo.server.getBossBarManager().add(new Identifier("standstill"), new LiteralText(""));
         standStillBar.addPlayer(tr.tFrom);
         standStillBar.setColor(BossBar.Color.PINK);
@@ -279,12 +280,12 @@ public class FabricTPA implements ModInitializer {
                     timer.cancel();
                     return;
                 }
-                PlayerPos currPos = PlayerPos.getFromPlayer(tr.tFrom);
 
-                if (lastPos.equals(currPos)) {
+                Vec3d currPos = tr.tFrom.getPos();
+                if (lastPos[0].equals(currPos)) {
                     counter[0] -= .25;
                 } else {
-                    lastPos.updatePos(currPos);
+                    lastPos[0] = currPos;
                     counter[0] = tpaStandStillSeconds;
                 }
 

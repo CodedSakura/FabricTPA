@@ -11,7 +11,7 @@
     "website": "codedsakura.eu"
   },
   "license": "ISC",
-  "icon": "assets/fabricTPA/icon.png",
+  "icon": "assets/FabricTPA/icon.png",
   "environment": "server",
   "entrypoints": {
     "main": [
