@@ -11,6 +11,9 @@ import net.fabricmc.fabric.api.gamerule.v1.GameRuleFactory;
 import net.fabricmc.fabric.api.gamerule.v1.GameRuleRegistry;
 import net.fabricmc.fabric.api.gamerule.v1.rule.DoubleRule;
 import net.minecraft.command.argument.EntityArgumentType;
+import net.minecraft.entity.boss.BossBar;
+import net.minecraft.entity.boss.CommandBossBar;
+import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
@@ -18,6 +21,7 @@ import net.minecraft.text.HoverEvent;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.util.Formatting;
+import net.minecraft.util.Identifier;
 import net.minecraft.world.GameRules;
 import org.jetbrains.annotations.Nullable;
 
@@ -36,10 +40,7 @@ public class FabricTPA implements ModInitializer {
     protected static double tpaStandStillSeconds = 5;
 
     @Nullable
-    private static CompletableFuture<Suggestions> getSuggestionsFromActiveTargets(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder, ServerCommandSource scs, List<String> activeTargets) {
-        List<String> others = Arrays.stream(scs.getMinecraftServer().getPlayerNames())
-                .filter(s -> !s.equals(scs.getName()) && !activeTargets.contains(s))
-                .collect(Collectors.toList());
+    private static CompletableFuture<Suggestions> getSuggestionsFromActiveTargets(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder, List<String> others) {
         if (context.getNodes().size() == 2) {
             String start = context.getNodes().get(1).getRange().get(context.getInput()).toLowerCase();
             others.stream().filter(s -> s.toLowerCase().startsWith(start)).forEach(builder::suggest);
@@ -58,21 +59,24 @@ public class FabricTPA implements ModInitializer {
                 activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().asString()),
                 activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().asString())
         ).collect(Collectors.toList());
-        return getSuggestionsFromActiveTargets(context, builder, scs, activeTargets);
+        List<String> others = Arrays.stream(scs.getMinecraftServer().getPlayerNames())
+                .filter(s -> !s.equals(scs.getName()) && !activeTargets.contains(s))
+                .collect(Collectors.toList());
+        return getSuggestionsFromActiveTargets(context, builder, others);
     }
 
     private static CompletableFuture<Suggestions> getTPATargetSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
         ServerCommandSource scs = context.getSource();
 
-        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().asString()).collect(Collectors.toList());
-        return getSuggestionsFromActiveTargets(context, builder, scs, activeTargets);
+        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().asString()).collect(Collectors.toList());
+        return getSuggestionsFromActiveTargets(context, builder, activeTargets);
     }
 
     private static CompletableFuture<Suggestions> getTPASenderSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
         ServerCommandSource scs = context.getSource();
 
-        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().asString()).collect(Collectors.toList());
-        return getSuggestionsFromActiveTargets(context, builder, scs, activeTargets);
+        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().asString()).collect(Collectors.toList());
+        return getSuggestionsFromActiveTargets(context, builder, activeTargets);
     }
 
     @Override
@@ -255,12 +259,23 @@ public class FabricTPA implements ModInitializer {
         Timer timer = new Timer();
         final double[] counter = {tpaStandStillSeconds};
         final PlayerPos lastPos = PlayerPos.getFromPlayer(tr.tFrom);
+        CommandBossBar standStillBar = rTo.server.getBossBarManager().add(new Identifier("standstill"), new LiteralText(""));
+        standStillBar.addPlayer(tr.tFrom);
+        standStillBar.setColor(BossBar.Color.PINK);
+        tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
                 if (counter[0] == 0) {
-                    tr.tFrom.sendMessage(new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE), true);
                     tr.tFrom.teleport(tr.tTo.getServerWorld(), tr.tTo.getX(), tr.tTo.getY(), tr.tTo.getZ(), tr.tTo.yaw, tr.tTo.pitch);
+                    standStillBar.removePlayer(tr.tFrom);
+                    rTo.server.getBossBarManager().remove(standStillBar);
+                    new Timer().schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.RESET, null));
+                        }
+                    }, 500);
                     timer.cancel();
                     return;
                 }
@@ -270,12 +285,14 @@ public class FabricTPA implements ModInitializer {
                     counter[0] -= .25;
                 } else {
                     lastPos.updatePos(currPos);
-                    counter[0] = tpaStandStillSeconds - 1;
+                    counter[0] = tpaStandStillSeconds;
                 }
 
-                tr.tFrom.sendMessage(new LiteralText("Stand still for ").formatted(Formatting.LIGHT_PURPLE)
-                        .append(new LiteralText(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
-                        .append(new LiteralText(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
+                standStillBar.setPercent((float) (counter[0] / tpaStandStillSeconds));
+                tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.SUBTITLE,
+                        new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC)));
+                tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.TITLE,
+                        new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
             }
         }, 0, 250);
         tr.cancelTimeout();
