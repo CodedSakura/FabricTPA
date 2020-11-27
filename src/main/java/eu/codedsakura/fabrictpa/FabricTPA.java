@@ -436,47 +436,4 @@ public class FabricTPA implements ModInitializer {
     interface Timeout {
         void onTimeout();
     }
-
-    static class PlayerPos {
-        double x, y, z;
-
-        static PlayerPos getFromPlayer(ServerPlayerEntity player) {
-            return new PlayerPos(player.getX(), player.getY(), player.getZ());
-        }
-
-        public PlayerPos(double x, double y, double z) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
-
-        void updatePos(PlayerPos p) {
-            this.x = p.x;
-            this.y = p.y;
-            this.z = p.z;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            PlayerPos playerPos = (PlayerPos) o;
-            return Double.compare(playerPos.x, x) == 0 &&
-                    Double.compare(playerPos.y, y) == 0 &&
-                    Double.compare(playerPos.z, z) == 0;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(x, y, z);
-        }
-
-        @Override
-        public String toString() {
-            return "PlayerPos{" + "x=" + x +
-                    ", y=" + y +
-                    ", z=" + z +
-                    '}';
-        }
-    }
 }
