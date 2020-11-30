@@ -79,26 +79,26 @@ public class FabricTPA implements ModInitializer {
     @Override
     public void onInitialize() {
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
-            dispatcher.register(literal("tpa").then(
-                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPAInitSuggestions)
+            dispatcher.register(literal("tpa")
+                    .then(argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPAInitSuggestions)
                             .executes(ctx -> tpaInit(ctx, getPlayer(ctx, "target")))));
 
-            dispatcher.register(literal("tpahere").then(
-                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPAInitSuggestions)
+            dispatcher.register(literal("tpahere")
+                    .then(argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPAInitSuggestions)
                             .executes(ctx -> tpaHere(ctx, getPlayer(ctx, "target")))));
 
-            dispatcher.register(literal("tpaaccept").then(
-                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPATargetSuggestions)
+            dispatcher.register(literal("tpaaccept")
+                    .then(argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPATargetSuggestions)
                             .executes(ctx -> tpaAccept(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaAccept(ctx, null)));
 
-            dispatcher.register(literal("tpadeny").then(
-                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPATargetSuggestions)
+            dispatcher.register(literal("tpadeny")
+                    .then(argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPATargetSuggestions)
                             .executes(ctx -> tpaDeny(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaDeny(ctx, null)));
 
-            dispatcher.register(literal("tpacancel").then(
-                    argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPASenderSuggestions)
+            dispatcher.register(literal("tpacancel")
+                    .then(argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPASenderSuggestions)
                             .executes(ctx -> tpaCancel(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaCancel(ctx, null)));
         });
