@@ -1,6 +1,6 @@
 # FabricTPA
 A server-side Fabric mod that adds /tpa command-set.  
-Works for Minecraft 1.16.2 - 1.16.4  
+Works for Minecraft 20w49a
 Requires [FabricAPI](https://www.curseforge.com/minecraft/mc-mods/fabric-api)  
 
 ## Commands
