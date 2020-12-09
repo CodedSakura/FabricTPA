@@ -1,6 +1,8 @@
 # FabricTPA
+[![CurseForge downloads](https://cf.way2muchnoise.eu/short_423295.svg)](https://www.curseforge.com/minecraft/mc-mods/fabrictpa)
+[![GitHub package.json version](https://img.shields.io/github/v/release/CodedSakura/FabricTPA)](https://github.com/CodedSakura/FabricTPA)  
 A server-side Fabric mod that adds /tpa command-set.  
-Works for Minecraft 1.16.2 - 1.16.4  
+Works for Minecraft 1.16.2+ (snapshots not fully tested)  
 Requires [FabricAPI](https://www.curseforge.com/minecraft/mc-mods/fabric-api)  
 
 ## Commands

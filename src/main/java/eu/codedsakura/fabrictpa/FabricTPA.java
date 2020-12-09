@@ -173,7 +173,7 @@ public class FabricTPA implements ModInitializer {
             return 1;
         }
 
-        TPARequest tr = new TPARequest(tTo, tFrom, true);
+        TPARequest tr = new TPARequest(tFrom, tTo, true);
         if (activeTPA.stream().anyMatch(tpaRequest -> tpaRequest.equals(tr))) {
             tTo.sendMessage(new LiteralText("There is already an ongoing request like this!").formatted(Formatting.RED), false);
             return 1;
@@ -256,7 +256,7 @@ public class FabricTPA implements ModInitializer {
         Timer timer = new Timer();
         final double[] counter = {tpaStandStillSeconds};
         final Vec3d[] lastPos = {tr.tFrom.getPos()};
-        CommandBossBar standStillBar = rTo.server.getBossBarManager().add(new Identifier("standstill"), new LiteralText(""));
+        CommandBossBar standStillBar = rTo.server.getBossBarManager().add(new Identifier("standstill"), LiteralText.EMPTY);
         standStillBar.addPlayer(tr.tFrom);
         standStillBar.setColor(BossBar.Color.PINK);
         tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
