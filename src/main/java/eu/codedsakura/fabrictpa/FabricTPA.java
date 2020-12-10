@@ -10,10 +10,12 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.gamerule.v1.GameRuleFactory;
 import net.fabricmc.fabric.api.gamerule.v1.GameRuleRegistry;
 import net.fabricmc.fabric.api.gamerule.v1.rule.DoubleRule;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.CommandBossBar;
 import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
+import net.minecraft.server.command.GameRuleCommand;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
@@ -24,8 +26,11 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.GameRules;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -36,9 +41,14 @@ import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
 public class FabricTPA implements ModInitializer {
+    public static final Logger logger = LogManager.getLogger("FabricTPA");
+
     private static final ArrayList<TPARequest> activeTPA = new ArrayList<>();
+    private static final String CONFIG_NAME = "FabricTPA.properties";
+
     protected static double tpaTimeoutSeconds = 60;
     protected static double tpaStandStillSeconds = 5;
+    protected static boolean tpaDisableBossBar = false;
 
     @Nullable
     private static CompletableFuture<Suggestions> getSuggestionsFromActiveTargets(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder, List<String> others) {
@@ -103,17 +113,70 @@ public class FabricTPA implements ModInitializer {
                     .executes(ctx -> tpaCancel(ctx, null)));
         });
 
+        File propFile = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_NAME).toFile();
+        logger.debug("Config file: {}", propFile);
+        Properties props = new Properties();
+        try (InputStream input = new FileInputStream(propFile)) {
+            props.load(input);
 
-        GameRules.Key<DoubleRule> tpaTimeout = GameRuleRegistry.register("tpaTimeout", GameRules.Category.PLAYER,
-                GameRuleFactory.createDoubleRule(60,  1, (minecraftServer, doubleRule) -> tpaTimeoutSeconds = doubleRule.get()));
+            tpaTimeoutSeconds = Double.parseDouble(props.getProperty("timeout", String.valueOf(tpaTimeoutSeconds)));
+            tpaStandStillSeconds = Double.parseDouble(props.getProperty("standStill", String.valueOf(tpaStandStillSeconds)));
+            tpaDisableBossBar = Boolean.getBoolean(props.getProperty("disableBossBar", String.valueOf(tpaDisableBossBar)));
 
-        GameRules.Key<DoubleRule> tpaStandStillTime = GameRuleRegistry.register("tpaStandStillTime", GameRules.Category.PLAYER,
-                GameRuleFactory.createDoubleRule(5, 0, (minecraftServer, doubleRule) -> tpaStandStillSeconds = doubleRule.get()));
+            logger.debug("Reading... tpaTimeoutSeconds={} tpaStandStillSeconds={} tpaDisableBossBar={}", tpaTimeoutSeconds, tpaStandStillSeconds, tpaDisableBossBar);
+        } catch (FileNotFoundException ignored) {
+            props.setProperty("timeout", String.valueOf(tpaTimeoutSeconds));
+            props.setProperty("standStill", String.valueOf(tpaStandStillSeconds));
+            props.setProperty("disableBossBar", String.valueOf(tpaDisableBossBar));
+            logger.debug("Initialising... tpaTimeoutSeconds={} tpaStandStillSeconds={} tpaDisableBossBar={}", tpaTimeoutSeconds, tpaStandStillSeconds, tpaDisableBossBar);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        try (OutputStream output = new FileOutputStream(propFile)) {
+            logger.debug("Writing... {}", props);
+            props.store(output, null);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        GameRules.Type<DoubleRule> ruleTimeout = GameRuleFactory.createDoubleRule(tpaTimeoutSeconds,  1, (minecraftServer, doubleRule) -> {
+            tpaTimeoutSeconds = doubleRule.get();
+            saveSettings();
+        });
+        GameRules.Key<DoubleRule> ruleKeyTimeout = GameRuleRegistry.register("tpaTimeout", GameRules.Category.PLAYER, ruleTimeout);
+
+        GameRules.Type<DoubleRule> ruleSST = GameRuleFactory.createDoubleRule(tpaStandStillSeconds, 0, (minecraftServer, doubleRule) -> {
+            tpaStandStillSeconds = doubleRule.get();
+            saveSettings();
+        });
+        GameRules.Key<DoubleRule> ruleKeySST = GameRuleRegistry.register("tpaStandStillTime", GameRules.Category.PLAYER, ruleSST);
+
+        GameRules.Type<GameRules.BooleanRule> ruleDBB = GameRuleFactory.createBooleanRule(tpaDisableBossBar, (minecraftServer, booleanRule) -> {
+            FabricTPA.tpaDisableBossBar = booleanRule.get();
+            saveSettings();
+        });
+        GameRules.Key<GameRules.BooleanRule> ruleKeyDBB = GameRuleRegistry.register("tpaDisableBossBar", GameRules.Category.PLAYER, ruleDBB);
 
         ServerLifecycleEvents.SERVER_STARTED.register(minecraftServer -> {
-            tpaTimeoutSeconds = minecraftServer.getGameRules().get(tpaTimeout).get();
-            tpaStandStillSeconds = minecraftServer.getGameRules().get(tpaStandStillTime).get();
+            minecraftServer.getGameRules().get(ruleKeyTimeout).setValue(ruleTimeout.createRule(), minecraftServer);
+            minecraftServer.getGameRules().get(ruleKeySST).setValue(ruleSST.createRule(), minecraftServer);
+            minecraftServer.getGameRules().get(ruleKeyDBB).set(tpaDisableBossBar, minecraftServer);
         });
+    }
+
+    private void saveSettings() {
+        File propFile = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_NAME).toFile();
+        Properties props = new Properties();
+        props.setProperty("timeout", String.valueOf(tpaTimeoutSeconds));
+        props.setProperty("standStill", String.valueOf(tpaStandStillSeconds));
+        props.setProperty("disableBossBar", String.valueOf(tpaDisableBossBar));
+        logger.debug("Over-writing... {}", props);
+        try (OutputStream output = new FileOutputStream(propFile)) {
+            props.store(output, null);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public static int tpaInit(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity tTo) throws CommandSyntaxException {
@@ -220,7 +283,6 @@ public class FabricTPA implements ModInitializer {
                 .filter(tpaRequest -> tpaRequest.rFrom.equals(rFrom) && tpaRequest.rTo.equals(rTo)).findFirst();
 
         if (!otr.isPresent()) {
-            System.out.println(rFrom.toString() + " => " + rTo.toString() + "\n" + activeTPA.stream().map(TPARequest::toString));
             rTo.sendMessage(new LiteralText("Something went wrong!").formatted(Formatting.RED), false);
             return null;
         }
@@ -256,17 +318,25 @@ public class FabricTPA implements ModInitializer {
         Timer timer = new Timer();
         final double[] counter = {tpaStandStillSeconds};
         final Vec3d[] lastPos = {tr.tFrom.getPos()};
-        CommandBossBar standStillBar = rTo.server.getBossBarManager().add(new Identifier("standstill"), LiteralText.EMPTY);
-        standStillBar.addPlayer(tr.tFrom);
-        standStillBar.setColor(BossBar.Color.PINK);
+        CommandBossBar standStillBar = null;
+        if (!tpaDisableBossBar) {
+            standStillBar = rTo.server.getBossBarManager().add(new Identifier("standstill"), LiteralText.EMPTY);
+            standStillBar.addPlayer(tr.tFrom);
+            standStillBar.setColor(BossBar.Color.PINK);
+        }
         tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
+        CommandBossBar finalStandStillBar = standStillBar;
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
                 if (counter[0] == 0) {
                     tr.tFrom.teleport(tr.tTo.getServerWorld(), tr.tTo.getX(), tr.tTo.getY(), tr.tTo.getZ(), tr.tTo.yaw, tr.tTo.pitch);
-                    standStillBar.removePlayer(tr.tFrom);
-                    rTo.server.getBossBarManager().remove(standStillBar);
+                    if (!tpaDisableBossBar && finalStandStillBar != null) {
+                        finalStandStillBar.removePlayer(tr.tFrom);
+                        rTo.server.getBossBarManager().remove(finalStandStillBar);
+                    } else {
+                        tr.tFrom.sendMessage(new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE), true);
+                    }
                     new Timer().schedule(new TimerTask() {
                         @Override
                         public void run() {
@@ -285,7 +355,13 @@ public class FabricTPA implements ModInitializer {
                     counter[0] = tpaStandStillSeconds;
                 }
 
-                standStillBar.setPercent((float) (counter[0] / tpaStandStillSeconds));
+                if (!tpaDisableBossBar && finalStandStillBar != null) {
+                    finalStandStillBar.setPercent((float) (counter[0] / tpaStandStillSeconds));
+                } else {
+                    tr.tFrom.sendMessage(new LiteralText("Stand still for ").formatted(Formatting.LIGHT_PURPLE)
+                            .append(new LiteralText(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
+                            .append(new LiteralText(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
+                }
                 tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.SUBTITLE,
                         new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC)));
                 tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.TITLE,
