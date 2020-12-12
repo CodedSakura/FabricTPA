@@ -15,7 +15,6 @@ import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.CommandBossBar;
 import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
-import net.minecraft.server.command.GameRuleCommand;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
@@ -88,6 +87,7 @@ public class FabricTPA implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        logger.info("Initializing...");
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
             dispatcher.register(literal("tpa")
                     .then(argument("target", EntityArgumentType.player()).suggests(FabricTPA::getTPAInitSuggestions)
@@ -121,7 +121,7 @@ public class FabricTPA implements ModInitializer {
 
             tpaTimeoutSeconds = Double.parseDouble(props.getProperty("timeout", String.valueOf(tpaTimeoutSeconds)));
             tpaStandStillSeconds = Double.parseDouble(props.getProperty("standStill", String.valueOf(tpaStandStillSeconds)));
-            tpaDisableBossBar = Boolean.getBoolean(props.getProperty("disableBossBar", String.valueOf(tpaDisableBossBar)));
+            tpaDisableBossBar = Boolean.parseBoolean(props.getProperty("disableBossBar", String.valueOf(tpaDisableBossBar)));
 
             logger.debug("Reading... tpaTimeoutSeconds={} tpaStandStillSeconds={} tpaDisableBossBar={}", tpaTimeoutSeconds, tpaStandStillSeconds, tpaDisableBossBar);
         } catch (FileNotFoundException ignored) {
