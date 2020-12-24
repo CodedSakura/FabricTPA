@@ -196,9 +196,9 @@ public class FabricTPA implements ModInitializer {
         try (InputStream input = new FileInputStream(propFile)) {
             props.load(input);
 
-            tpaTimeoutSeconds = Integer.parseInt(props.getProperty("timeout", String.valueOf(tpaTimeoutSeconds)));
-            tpaStandStillSeconds = Integer.parseInt(props.getProperty("standStill", String.valueOf(tpaStandStillSeconds)));
-            tpaCooldownSeconds = Integer.parseInt(props.getProperty("cooldown", String.valueOf(tpaCooldownSeconds)));
+            tpaTimeoutSeconds = (int) Double.parseDouble(props.getProperty("timeout", String.valueOf(tpaTimeoutSeconds)));
+            tpaStandStillSeconds = (int) Double.parseDouble(props.getProperty("standStill", String.valueOf(tpaStandStillSeconds)));
+            tpaCooldownSeconds = (int) Double.parseDouble(props.getProperty("cooldown", String.valueOf(tpaCooldownSeconds)));
             tpaCooldownMode = TPACooldownMode.valueOf(props.getProperty("cooldownMode", String.valueOf(tpaCooldownMode)));
             tpaDisableBossBar = Boolean.parseBoolean(props.getProperty("disableBossBar", String.valueOf(tpaDisableBossBar)));
 
