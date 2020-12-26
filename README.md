@@ -6,7 +6,7 @@ Works for Minecraft 1.16.2+ (snapshots not fully tested)
 Requires [FabricAPI](https://www.curseforge.com/minecraft/mc-mods/fabric-api)  
 
 ## Commands
-All commands don't require OP permissions. They're meant for everyone on a server to use.
+All commands except `/tpaconfig` don't require OP permissions. They're meant for everyone on a server to use.
 
 `/tpa <player>` - Initiates request for you to teleport to `<player>`  
 `/tpahere <player>` - Initiates request for `<player>` to teleport to you
@@ -15,7 +15,7 @@ All commands don't require OP permissions. They're meant for everyone on a serve
 `/tpaaccept [<player>]` - Accept a tpa or tpahere request you've received, argument required if multiple ongoing  
 `/tpadeny [<player>]` - Deny a tpa or tpahere request you've received, argument required if multiple ongoing
 
-`/tpaconfig [<option> [<value>]]` - Get/Set config options, more info below
+`/tpaconfig [<option> [<value>]]` - Get/Set config options, more info below (Requres OP / permission level 4)
 
 ## Configuration
 Configuration is done through `/tpaconfig`. There are currently 5 configurable options.  
