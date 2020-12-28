@@ -79,7 +79,6 @@ public class FabricTPA implements ModInitializer {
 
     private CompletableFuture<Suggestions> getTPASenderSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
         List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().asString()).collect(Collectors.toList());
-        logger.info(activeTargets);
         return filterSuggestionsByInput(builder, activeTargets);
     }
 

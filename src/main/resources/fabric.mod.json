@@ -3,12 +3,16 @@
   "id": "fabric-tpa",
   "version": "${version}",
   "name": "FabricTPA",
-  "description": "A mod to add /tpa commands and all counterparts.",
+  "description": "FabricTPA is a small mod that adds /tpa command and its counterparts",
   "authors": [
     "CodedSakura"
   ],
   "contact": {
-    "website": "mods.codedsakura.eu"
+    "website": "http://mods.codedsakura.eu",
+    "homepage": "http://codedsakura.eu",
+    "sources": "https://github.com/CodedSakura/FabricTPA",
+    "repo": "https://github.com/CodedSakura/FabricTPA",
+    "issues": "https://github.com/CodedSakura/FabricTPA/issues"
   },
   "license": "ISC",
   "icon": "assets/FabricTPA/icon.png",
@@ -20,7 +24,7 @@
   },
   "mixins": [],
   "depends": {
-    "fabricloader": ">=0.10.6",
+    "fabricloader": ">=0.10.6+build.214",
     "fabric": "*",
     "minecraft": "^1.16.2"
   }
