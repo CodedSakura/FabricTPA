@@ -39,6 +39,8 @@ import static net.minecraft.command.argument.EntityArgumentType.getPlayer;
 import static net.minecraft.server.command.CommandManager.argument;
 import static net.minecraft.server.command.CommandManager.literal;
 
+import me.lucko.fabric.api.permissions.v0.Permissions;
+
 public class FabricTPA implements ModInitializer {
     private static final Logger logger = LogManager.getLogger("FabricTPA");
 
@@ -92,101 +94,107 @@ public class FabricTPA implements ModInitializer {
         logger.info("Initializing...");
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
             dispatcher.register(literal("tpa")
-                    .then(argument("target", EntityArgumentType.player()).suggests(this::getTPAInitSuggestions)
-                            .executes(ctx -> tpaInit(ctx, getPlayer(ctx, "target")))));
+                    .requires(Permissions.require("ftpa.tpa", true))
+                            .then(argument("target", EntityArgumentType.player()).suggests(this::getTPAInitSuggestions)
+                                    .executes(ctx -> tpaInit(ctx, getPlayer(ctx, "target")))));
 
             dispatcher.register(literal("tpahere")
-                    .then(argument("target", EntityArgumentType.player()).suggests(this::getTPAInitSuggestions)
-                            .executes(ctx -> tpaHere(ctx, getPlayer(ctx, "target")))));
+                    .requires(Permissions.require("ftpa.tpahere", true))
+                            .then(argument("target", EntityArgumentType.player()).suggests(this::getTPAInitSuggestions)
+                                    .executes(ctx -> tpaHere(ctx, getPlayer(ctx, "target")))));
 
             dispatcher.register(literal("tpaaccept")
-                    .then(argument("target", EntityArgumentType.player()).suggests(this::getTPATargetSuggestions)
-                            .executes(ctx -> tpaAccept(ctx, getPlayer(ctx, "target"))))
-                    .executes(ctx -> tpaAccept(ctx, null)));
+            	    .requires(Permissions.require("ftpa.tpaaccept", true))
+                            .then(argument("target", EntityArgumentType.player()).suggests(this::getTPATargetSuggestions)
+                                    .executes(ctx -> tpaAccept(ctx, getPlayer(ctx, "target"))))
+                            .executes(ctx -> tpaAccept(ctx, null)));
 
             dispatcher.register(literal("tpadeny")
-                    .then(argument("target", EntityArgumentType.player()).suggests(this::getTPATargetSuggestions)
-                            .executes(ctx -> tpaDeny(ctx, getPlayer(ctx, "target"))))
-                    .executes(ctx -> tpaDeny(ctx, null)));
+            	    .requires(Permissions.require("ftpa.tpadeny", true))
+                            .then(argument("target", EntityArgumentType.player()).suggests(this::getTPATargetSuggestions)
+                                    .executes(ctx -> tpaDeny(ctx, getPlayer(ctx, "target"))))
+                            .executes(ctx -> tpaDeny(ctx, null)));
 
             dispatcher.register(literal("tpacancel")
-                    .then(argument("target", EntityArgumentType.player()).suggests(this::getTPASenderSuggestions)
-                            .executes(ctx -> tpaCancel(ctx, getPlayer(ctx, "target"))))
-                    .executes(ctx -> tpaCancel(ctx, null)));
+            	    .requires(Permissions.require("ftpa.tpacancel", true))
+                            .then(argument("target", EntityArgumentType.player()).suggests(this::getTPASenderSuggestions)
+                                    .executes(ctx -> tpaCancel(ctx, getPlayer(ctx, "target"))))
+                            .executes(ctx -> tpaCancel(ctx, null)));
 
             dispatcher.register(literal("tpaconfig").requires(source -> source.hasPermissionLevel(4))
-                    .then(literal("timeout")
-                            .then(argument("timeout", IntegerArgumentType.integer(0))
+            	    .requires(Permissions.require("ftpa.tpaconfig", false))
+                            .then(literal("timeout")
+                                    .then(argument("timeout", IntegerArgumentType.integer(0))
+                                            .executes(ctx -> {
+                                                tpaTimeoutSeconds = IntegerArgumentType.getInteger(ctx, "timeout");
+                                                ctx.getSource().sendFeedback(new LiteralText("Timeout is now ").append(String.valueOf(tpaTimeoutSeconds)), true);
+                                                saveSettings();
+                                                return 1;
+                                            }))
                                     .executes(ctx -> {
-                                        tpaTimeoutSeconds = IntegerArgumentType.getInteger(ctx, "timeout");
-                                        ctx.getSource().sendFeedback(new LiteralText("Timeout is now ").append(String.valueOf(tpaTimeoutSeconds)), true);
-                                        saveSettings();
+                                        ctx.getSource().sendFeedback(new LiteralText("Timeout is ").append(String.valueOf(tpaTimeoutSeconds)), false);
+                                        return 1;
+                                    }))
+                            .then(literal("stand-still")
+                                    .then(argument("stand-still", IntegerArgumentType.integer(0))
+                                            .executes(ctx -> {
+                                                tpaStandStillSeconds = IntegerArgumentType.getInteger(ctx, "stand-still");
+                                                ctx.getSource().sendFeedback(new LiteralText("Stand-Still time is now ").append(String.valueOf(tpaStandStillSeconds)), true);
+                                                saveSettings();
+                                                return 1;
+                                            }))
+                                    .executes(ctx -> {
+                                        ctx.getSource().sendFeedback(new LiteralText("Stand-Still time is ").append(String.valueOf(tpaStandStillSeconds)), false);
+                                        return 1;
+                                    }))
+                            .then(literal("cooldown")
+                                    .then(argument("cooldown", IntegerArgumentType.integer(0))
+                                            .executes(ctx -> {
+                                                tpaCooldownSeconds = IntegerArgumentType.getInteger(ctx, "cooldown");
+                                                ctx.getSource().sendFeedback(new LiteralText("Cooldown is now ").append(String.valueOf(tpaCooldownSeconds)), true);
+                                                saveSettings();
+                                                return 1;
+                                            }))
+                                    .executes(ctx -> {
+                                        ctx.getSource().sendFeedback(new LiteralText("Cooldown is ").append(String.valueOf(tpaCooldownSeconds)), false);
+                                        return 1;
+                                    }))
+                            .then(literal("disable-bossbar")
+                                    .then(argument("state", BoolArgumentType.bool())
+                                            .executes(ctx -> {
+                                                tpaDisableBossBar = BoolArgumentType.getBool(ctx, "state");
+                                                ctx.getSource().sendFeedback(new LiteralText("BossBar disabled set to ").append(String.valueOf(tpaDisableBossBar)), true);
+                                                saveSettings();
+                                                return 1;
+                                            }))
+                                    .executes(ctx -> {
+                                        ctx.getSource().sendFeedback(new LiteralText("BossBar disabled: ").append(String.valueOf(tpaDisableBossBar)), false);
+                                        return 1;
+                                    }))
+                            .then(literal("cooldown-mode")
+                                    .then(argument("cooldown-mode", StringArgumentType.string()).suggests(this::getTCMSuggestions)
+                                            .executes(ctx -> {
+                                                try {
+                                                    tpaCooldownMode = TPACooldownMode.valueOf(StringArgumentType.getString(ctx, "cooldown-mode"));
+                                                    ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode set to ").append(String.valueOf(tpaCooldownMode)), true);
+                                                    saveSettings();
+                                                    return 1;
+                                                } catch (Exception ex) {
+                                                    throw new SimpleCommandExceptionType(new LiteralText("That's not a valid Cooldown Mode!")).create();
+                                                }
+                                            }))
+                                    .executes(ctx -> {
+                                        ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode: ").append(String.valueOf(tpaCooldownMode)), false);
                                         return 1;
                                     }))
                             .executes(ctx -> {
                                 ctx.getSource().sendFeedback(new LiteralText("Timeout is ").append(String.valueOf(tpaTimeoutSeconds)), false);
-                                return 1;
-                            }))
-                    .then(literal("stand-still")
-                            .then(argument("stand-still", IntegerArgumentType.integer(0))
-                                    .executes(ctx -> {
-                                        tpaStandStillSeconds = IntegerArgumentType.getInteger(ctx, "stand-still");
-                                        ctx.getSource().sendFeedback(new LiteralText("Stand-Still time is now ").append(String.valueOf(tpaStandStillSeconds)), true);
-                                        saveSettings();
-                                        return 1;
-                                    }))
-                            .executes(ctx -> {
                                 ctx.getSource().sendFeedback(new LiteralText("Stand-Still time is ").append(String.valueOf(tpaStandStillSeconds)), false);
-                                return 1;
-                            }))
-                    .then(literal("cooldown")
-                            .then(argument("cooldown", IntegerArgumentType.integer(0))
-                                    .executes(ctx -> {
-                                        tpaCooldownSeconds = IntegerArgumentType.getInteger(ctx, "cooldown");
-                                        ctx.getSource().sendFeedback(new LiteralText("Cooldown is now ").append(String.valueOf(tpaCooldownSeconds)), true);
-                                        saveSettings();
-                                        return 1;
-                                    }))
-                            .executes(ctx -> {
                                 ctx.getSource().sendFeedback(new LiteralText("Cooldown is ").append(String.valueOf(tpaCooldownSeconds)), false);
-                                return 1;
-                            }))
-                    .then(literal("disable-bossbar")
-                            .then(argument("state", BoolArgumentType.bool())
-                                    .executes(ctx -> {
-                                        tpaDisableBossBar = BoolArgumentType.getBool(ctx, "state");
-                                        ctx.getSource().sendFeedback(new LiteralText("BossBar disabled set to ").append(String.valueOf(tpaDisableBossBar)), true);
-                                        saveSettings();
-                                        return 1;
-                                    }))
-                            .executes(ctx -> {
+                                ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode: ").append(String.valueOf(tpaCooldownMode)), false);
                                 ctx.getSource().sendFeedback(new LiteralText("BossBar disabled: ").append(String.valueOf(tpaDisableBossBar)), false);
                                 return 1;
-                            }))
-                    .then(literal("cooldown-mode")
-                            .then(argument("cooldown-mode", StringArgumentType.string()).suggests(this::getTCMSuggestions)
-                                    .executes(ctx -> {
-                                        try {
-                                            tpaCooldownMode = TPACooldownMode.valueOf(StringArgumentType.getString(ctx, "cooldown-mode"));
-                                            ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode set to ").append(String.valueOf(tpaCooldownMode)), true);
-                                            saveSettings();
-                                            return 1;
-                                        } catch (Exception ex) {
-                                            throw new SimpleCommandExceptionType(new LiteralText("That's not a valid Cooldown Mode!")).create();
-                                        }
-                                    }))
-                            .executes(ctx -> {
-                                ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode: ").append(String.valueOf(tpaCooldownMode)), false);
-                                return 1;
-                            }))
-                    .executes(ctx -> {
-                        ctx.getSource().sendFeedback(new LiteralText("Timeout is ").append(String.valueOf(tpaTimeoutSeconds)), false);
-                        ctx.getSource().sendFeedback(new LiteralText("Stand-Still time is ").append(String.valueOf(tpaStandStillSeconds)), false);
-                        ctx.getSource().sendFeedback(new LiteralText("Cooldown is ").append(String.valueOf(tpaCooldownSeconds)), false);
-                        ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode: ").append(String.valueOf(tpaCooldownMode)), false);
-                        ctx.getSource().sendFeedback(new LiteralText("BossBar disabled: ").append(String.valueOf(tpaDisableBossBar)), false);
-                        return 1;
-                    }));
+                            }));
         });
 
         File propFile = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_NAME).toFile();
