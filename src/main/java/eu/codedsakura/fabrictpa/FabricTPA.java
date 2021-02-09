@@ -122,7 +122,7 @@ public class FabricTPA implements ModInitializer {
                             .executes(ctx -> tpaCancel(ctx, null)));
 
             dispatcher.register(literal("tpaconfig").requires(source -> source.hasPermissionLevel(4))
-            	    .requires(Permissions.require("ftpa.tpaconfig", false))
+            	    .requires(Permissions.require("ftpa.tpaconfig", 4))
                             .then(literal("timeout")
                                     .then(argument("timeout", IntegerArgumentType.integer(0))
                                             .executes(ctx -> {
