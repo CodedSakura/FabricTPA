@@ -328,7 +328,7 @@ public class FabricTPA implements ModInitializer {
 
         tFrom.sendMessage(
                 new LiteralText(tTo.getName().asString()).formatted(Formatting.AQUA)
-                        .append(new LiteralText(" has requested to for you to them!").formatted(Formatting.LIGHT_PURPLE))
+                        .append(new LiteralText(" has requested for you to teleport to them!").formatted(Formatting.LIGHT_PURPLE))
                         .append(new LiteralText("\nTo accept type ").formatted(Formatting.LIGHT_PURPLE))
                         .append(new LiteralText("/tpaaccept [<player>]").styled(s ->
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpaaccept " + tTo.getName().asString()))
