@@ -14,7 +14,7 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.CommandBossBar;
-import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
+// import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
@@ -403,7 +403,11 @@ public class FabricTPA implements ModInitializer {
             standStillBar.addPlayer(tr.tFrom);
             standStillBar.setColor(BossBar.Color.PINK);
         }
-        tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
+        // tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
+        tr.tFrom.server.getCommandManager().execute(
+                tr.tFrom.getCommandSource(),
+                "title @s times 0 10 5"
+        );
         CommandBossBar finalStandStillBar = standStillBar;
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
@@ -419,7 +423,7 @@ public class FabricTPA implements ModInitializer {
                     new Timer().schedule(new TimerTask() {
                         @Override
                         public void run() {
-                            tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.RESET, null));
+                            tr.tFrom.sendMessage(new LiteralText(""), true);
                         }
                     }, 500);
                     switch (tpaCooldownMode) {
@@ -453,10 +457,18 @@ public class FabricTPA implements ModInitializer {
                             .append(new LiteralText(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
                             .append(new LiteralText(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
                 }
-                tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.SUBTITLE,
-                        new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC)));
-                tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.TITLE,
-                        new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
+                // tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.SUBTITLE,
+                //         new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC)));
+                tr.tFrom.server.getCommandManager().execute(
+                        tr.tFrom.getCommandSource(),
+                        "title @s subtitle {\"text\":\"Please stand still...\",\"color\":\"red\",\"italic\":\"true\"}"
+                );
+                // tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.TITLE,
+                //         new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
+                tr.tFrom.server.getCommandManager().execute(
+                        tr.tFrom.getCommandSource(),
+                        "title @s title {\"text\":\"Teleporting!\",\"color\":\"light_purple\",\"bold\":\"true\"}"
+                );
             }
         }, 0, 250);
         tr.cancelTimeout();
