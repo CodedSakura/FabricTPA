@@ -11,6 +11,7 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.SharedConstants;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.CommandBossBar;
@@ -27,6 +28,7 @@ import net.minecraft.util.math.Vec3d;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.Nullable;
+import us.spaceclouds.fabrictpafixtitles.FabricTPAFixTitles;
 
 import java.io.*;
 import java.time.Instant;
@@ -45,12 +47,25 @@ public class FabricTPA implements ModInitializer {
     private final ArrayList<TPARequest> activeTPA = new ArrayList<>();
     private final HashMap<UUID, Long> recentRequests = new HashMap<>();
     private final String CONFIG_NAME = "FabricTPA.properties";
+    private final boolean pre21w08a = determineVersion();
 
     protected static int tpaTimeoutSeconds = 60;
     protected static int tpaStandStillSeconds = 5;
     protected static int tpaCooldownSeconds = 5;
     protected static boolean tpaDisableBossBar = false;
     protected static TPACooldownMode tpaCooldownMode = TPACooldownMode.WhoTeleported;
+
+    /**
+     * Determines the version of minecraft
+     *
+     * @return returns true if version is before 21w08a, otherwise false
+     */
+    private boolean determineVersion() {
+        String version = SharedConstants.getGameVersion().getName();
+        return (version.startsWith("21w0") && !(version.endsWith("8a") || version.endsWith("8b"))) ||
+                (version.startsWith("20w")) ||
+                (version.startsWith("1.16"));
+    }
 
     @Nullable
     private static CompletableFuture<Suggestions> filterSuggestionsByInput(SuggestionsBuilder builder, List<String> values) {
@@ -403,7 +418,11 @@ public class FabricTPA implements ModInitializer {
             standStillBar.addPlayer(tr.tFrom);
             standStillBar.setColor(BossBar.Color.PINK);
         }
-        tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
+        if (pre21w08a) {
+            tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
+        } else {
+            FabricTPAFixTitles.setFade(tr.tFrom, 0, 10, 5);
+        }
         CommandBossBar finalStandStillBar = standStillBar;
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
@@ -419,7 +438,11 @@ public class FabricTPA implements ModInitializer {
                     new Timer().schedule(new TimerTask() {
                         @Override
                         public void run() {
-                            tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.RESET, null));
+                            if (pre21w08a) {
+                                tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.RESET, null));
+                            } else {
+                                FabricTPAFixTitles.clearTitle(tr.tFrom);
+                            }
                         }
                     }, 500);
                     switch (tpaCooldownMode) {
@@ -453,10 +476,15 @@ public class FabricTPA implements ModInitializer {
                             .append(new LiteralText(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
                             .append(new LiteralText(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
                 }
-                tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.SUBTITLE,
-                        new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC)));
-                tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.TITLE,
-                        new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
+                if (pre21w08a) {
+                    tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.SUBTITLE,
+                            new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC)));
+                    tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.TITLE,
+                            new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
+                } else {
+                    FabricTPAFixTitles.setSubTitle(tr.tFrom, new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC));
+                    FabricTPAFixTitles.setTitle(tr.tFrom, new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD));
+                }
             }
         }, 0, 250);
         tr.cancelTimeout();
