@@ -16,7 +16,7 @@
   },
   "license": "ISC",
   "icon": "assets/FabricTPA/icon.png",
-  "environment": "server",
+  "environment": "*",
   "entrypoints": {
     "main": [
       "eu.codedsakura.fabrictpa.FabricTPA"
