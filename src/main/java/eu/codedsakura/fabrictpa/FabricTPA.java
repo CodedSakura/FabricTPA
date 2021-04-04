@@ -1,21 +1,19 @@
 package eu.codedsakura.fabrictpa;
 
-import com.mojang.brigadier.arguments.BoolArgumentType;
-import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
+import eu.codedsakura.mods.ConfigUtils;
+import eu.codedsakura.mods.TeleportUtils;
+import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.SharedConstants;
 import net.minecraft.command.argument.EntityArgumentType;
-import net.minecraft.entity.boss.BossBar;
-import net.minecraft.entity.boss.CommandBossBar;
-import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.text.ClickEvent;
@@ -23,14 +21,11 @@ import net.minecraft.text.HoverEvent;
 import net.minecraft.text.LiteralText;
 import net.minecraft.text.MutableText;
 import net.minecraft.util.Formatting;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.Vec3d;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import us.spaceclouds.fabrictpafixtitles.FabricTPAFixTitles;
 
-import java.io.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -43,24 +38,19 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 public class FabricTPA implements ModInitializer {
     private static final Logger logger = LogManager.getLogger("FabricTPA");
+    private static final String CONFIG_NAME = "FabricTPA.properties";
 
     private final ArrayList<TPARequest> activeTPA = new ArrayList<>();
     private final HashMap<UUID, Long> recentRequests = new HashMap<>();
-    private final String CONFIG_NAME = "FabricTPA.properties";
-    private final boolean pre21w08a = determineVersion();
-
-    protected static int tpaTimeoutSeconds = 60;
-    protected static int tpaStandStillSeconds = 5;
-    protected static int tpaCooldownSeconds = 5;
-    protected static boolean tpaDisableBossBar = false;
-    protected static TPACooldownMode tpaCooldownMode = TPACooldownMode.WhoTeleported;
+    public static final boolean pre21w08a = determineVersion();
+    private ConfigUtils config;
 
     /**
      * Determines the version of minecraft
      *
-     * @return returns true if version is before 21w08a, otherwise false
+     * @return true if version is before 21w08a, otherwise false
      */
-    private boolean determineVersion() {
+    private static boolean determineVersion() {
         String version = SharedConstants.getGameVersion().getName();
         return (version.startsWith("21w0") && !(version.endsWith("8a") || version.endsWith("8b"))) ||
                 (version.startsWith("20w")) ||
@@ -97,164 +87,79 @@ public class FabricTPA implements ModInitializer {
         return filterSuggestionsByInput(builder, activeTargets);
     }
 
-    private CompletableFuture<Suggestions> getTCMSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
-        List<String> tcmValues = Arrays.stream(TPACooldownMode.values()).map(String::valueOf).collect(Collectors.toList());
-        return filterSuggestionsByInput(builder, tcmValues);
+    static class CooldownModeConfigValue extends ConfigUtils.IConfigValue<TPACooldownMode> {
+        public CooldownModeConfigValue(@NotNull String name, TPACooldownMode defaultValue, @Nullable ConfigUtils.Command command) {
+            super(name, defaultValue, null, command, (context, builder) -> {
+                List<String> tcmValues = Arrays.stream(TPACooldownMode.values()).map(String::valueOf).collect(Collectors.toList());
+                return filterSuggestionsByInput(builder, tcmValues);
+            });
+        }
+
+        @Override
+        public TPACooldownMode getFromProps(Properties props) {
+            return TPACooldownMode.valueOf(props.getProperty(name));
+        }
+
+        @Override
+        public ArgumentType<?> getArgumentType() {
+            return StringArgumentType.string();
+        }
+
+        @Override
+        public TPACooldownMode parseArgumentValue(CommandContext<ServerCommandSource> ctx) {
+            return TPACooldownMode.valueOf(StringArgumentType.getString(ctx, name));
+        }
     }
 
     @Override
     public void onInitialize() {
         logger.info("Initializing...");
+
+        config = new ConfigUtils(FabricLoader.getInstance().getConfigDir().resolve(CONFIG_NAME).toFile(), logger, Arrays.asList(new ConfigUtils.IConfigValue[] {
+                new ConfigUtils.IntegerConfigValue("timeout", 60, new ConfigUtils.IntegerConfigValue.IntLimits(0),
+                        new ConfigUtils.Command("Timeout is %s seconds", "Timeout set to %s seconds")),
+                new ConfigUtils.IntegerConfigValue("stand-still", 5, new ConfigUtils.IntegerConfigValue.IntLimits(0),
+                        new ConfigUtils.Command("Stand-Still time is %s seconds", "Stand-Still time set to %s seconds")),
+                new ConfigUtils.IntegerConfigValue("cooldown", 5, new ConfigUtils.IntegerConfigValue.IntLimits(0),
+                        new ConfigUtils.Command("Cooldown is %s seconds", "Cooldown set to %s seconds")),
+                new ConfigUtils.BooleanConfigValue("bossbar", true,
+                        new ConfigUtils.Command("Boss-Bar on: %s", "Boss-Bar is now: %s")),
+                new CooldownModeConfigValue("cooldown-mode", TPACooldownMode.WhoTeleported,
+                        new ConfigUtils.Command("Cooldown Mode is %s", "Cooldown Mode set to %s"))
+        }));
+
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
             dispatcher.register(literal("tpa")
+                    .requires(Permissions.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPAInitSuggestions)
                             .executes(ctx -> tpaInit(ctx, getPlayer(ctx, "target")))));
 
             dispatcher.register(literal("tpahere")
+                    .requires(Permissions.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPAInitSuggestions)
                             .executes(ctx -> tpaHere(ctx, getPlayer(ctx, "target")))));
 
             dispatcher.register(literal("tpaaccept")
+                    .requires(Permissions.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPATargetSuggestions)
                             .executes(ctx -> tpaAccept(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaAccept(ctx, null)));
 
             dispatcher.register(literal("tpadeny")
+                    .requires(Permissions.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPATargetSuggestions)
                             .executes(ctx -> tpaDeny(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaDeny(ctx, null)));
 
             dispatcher.register(literal("tpacancel")
+                    .requires(Permissions.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPASenderSuggestions)
                             .executes(ctx -> tpaCancel(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaCancel(ctx, null)));
 
-            dispatcher.register(literal("tpaconfig").requires(source -> source.hasPermissionLevel(4))
-                    .then(literal("timeout")
-                            .then(argument("timeout", IntegerArgumentType.integer(0))
-                                    .executes(ctx -> {
-                                        tpaTimeoutSeconds = IntegerArgumentType.getInteger(ctx, "timeout");
-                                        ctx.getSource().sendFeedback(new LiteralText("Timeout is now ").append(String.valueOf(tpaTimeoutSeconds)), true);
-                                        saveSettings();
-                                        return 1;
-                                    }))
-                            .executes(ctx -> {
-                                ctx.getSource().sendFeedback(new LiteralText("Timeout is ").append(String.valueOf(tpaTimeoutSeconds)), false);
-                                return 1;
-                            }))
-                    .then(literal("stand-still")
-                            .then(argument("stand-still", IntegerArgumentType.integer(0))
-                                    .executes(ctx -> {
-                                        tpaStandStillSeconds = IntegerArgumentType.getInteger(ctx, "stand-still");
-                                        ctx.getSource().sendFeedback(new LiteralText("Stand-Still time is now ").append(String.valueOf(tpaStandStillSeconds)), true);
-                                        saveSettings();
-                                        return 1;
-                                    }))
-                            .executes(ctx -> {
-                                ctx.getSource().sendFeedback(new LiteralText("Stand-Still time is ").append(String.valueOf(tpaStandStillSeconds)), false);
-                                return 1;
-                            }))
-                    .then(literal("cooldown")
-                            .then(argument("cooldown", IntegerArgumentType.integer(0))
-                                    .executes(ctx -> {
-                                        tpaCooldownSeconds = IntegerArgumentType.getInteger(ctx, "cooldown");
-                                        ctx.getSource().sendFeedback(new LiteralText("Cooldown is now ").append(String.valueOf(tpaCooldownSeconds)), true);
-                                        saveSettings();
-                                        return 1;
-                                    }))
-                            .executes(ctx -> {
-                                ctx.getSource().sendFeedback(new LiteralText("Cooldown is ").append(String.valueOf(tpaCooldownSeconds)), false);
-                                return 1;
-                            }))
-                    .then(literal("disable-bossbar")
-                            .then(argument("state", BoolArgumentType.bool())
-                                    .executes(ctx -> {
-                                        tpaDisableBossBar = BoolArgumentType.getBool(ctx, "state");
-                                        ctx.getSource().sendFeedback(new LiteralText("BossBar disabled set to ").append(String.valueOf(tpaDisableBossBar)), true);
-                                        saveSettings();
-                                        return 1;
-                                    }))
-                            .executes(ctx -> {
-                                ctx.getSource().sendFeedback(new LiteralText("BossBar disabled: ").append(String.valueOf(tpaDisableBossBar)), false);
-                                return 1;
-                            }))
-                    .then(literal("cooldown-mode")
-                            .then(argument("cooldown-mode", StringArgumentType.string()).suggests(this::getTCMSuggestions)
-                                    .executes(ctx -> {
-                                        try {
-                                            tpaCooldownMode = TPACooldownMode.valueOf(StringArgumentType.getString(ctx, "cooldown-mode"));
-                                            ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode set to ").append(String.valueOf(tpaCooldownMode)), true);
-                                            saveSettings();
-                                            return 1;
-                                        } catch (Exception ex) {
-                                            throw new SimpleCommandExceptionType(new LiteralText("That's not a valid Cooldown Mode!")).create();
-                                        }
-                                    }))
-                            .executes(ctx -> {
-                                ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode: ").append(String.valueOf(tpaCooldownMode)), false);
-                                return 1;
-                            }))
-                    .executes(ctx -> {
-                        ctx.getSource().sendFeedback(new LiteralText("Timeout is ").append(String.valueOf(tpaTimeoutSeconds)), false);
-                        ctx.getSource().sendFeedback(new LiteralText("Stand-Still time is ").append(String.valueOf(tpaStandStillSeconds)), false);
-                        ctx.getSource().sendFeedback(new LiteralText("Cooldown is ").append(String.valueOf(tpaCooldownSeconds)), false);
-                        ctx.getSource().sendFeedback(new LiteralText("Cooldown Mode: ").append(String.valueOf(tpaCooldownMode)), false);
-                        ctx.getSource().sendFeedback(new LiteralText("BossBar disabled: ").append(String.valueOf(tpaDisableBossBar)), false);
-                        return 1;
-                    }));
+            dispatcher.register(config.generateCommand("tpaconfig", Permissions.require("fabrictpa.config", 2)));
         });
 
-        File propFile = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_NAME).toFile();
-        logger.debug("Config file: {}", propFile);
-        Properties props = new Properties();
-        try (InputStream input = new FileInputStream(propFile)) {
-            props.load(input);
-
-            tpaTimeoutSeconds = (int) Double.parseDouble(props.getProperty("timeout", String.valueOf(tpaTimeoutSeconds)));
-            tpaStandStillSeconds = (int) Double.parseDouble(props.getProperty("standStill", String.valueOf(tpaStandStillSeconds)));
-            tpaCooldownSeconds = (int) Double.parseDouble(props.getProperty("cooldown", String.valueOf(tpaCooldownSeconds)));
-            tpaCooldownMode = TPACooldownMode.valueOf(props.getProperty("cooldownMode", String.valueOf(tpaCooldownMode)));
-            tpaDisableBossBar = Boolean.parseBoolean(props.getProperty("disableBossBar", String.valueOf(tpaDisableBossBar)));
-
-            logger.debug("Reading config...");
-        } catch (FileNotFoundException ignored) {
-            setDefaultPropValues(props);
-            logger.debug("Initialising config...");
-        } catch (IOException e) {
-            logger.fatal("Failed to load config file!");
-            e.printStackTrace();
-        } catch (Exception e) {
-            logger.fatal("Failed to parse the config!");
-            e.printStackTrace();
-        }
-
-        try (OutputStream output = new FileOutputStream(propFile)) {
-            logger.debug("Writing config...");
-            props.store(output, null);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void saveSettings() {
-        File propFile = FabricLoader.getInstance().getConfigDir().resolve(CONFIG_NAME).toFile();
-        Properties props = new Properties();
-        setDefaultPropValues(props);
-        logger.debug("Updating config...");
-        try (OutputStream output = new FileOutputStream(propFile)) {
-            props.store(output, null);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void setDefaultPropValues(Properties props) {
-        props.setProperty("timeout", String.valueOf(tpaTimeoutSeconds));
-        props.setProperty("standStill", String.valueOf(tpaStandStillSeconds));
-        props.setProperty("cooldown", String.valueOf(tpaCooldownSeconds));
-        props.setProperty("cooldownMode", String.valueOf(tpaCooldownMode));
-        props.setProperty("cooldownMode.comment", "Must be one of \"WhoTeleported\", \"WhoInitiated\", \"BothUsers\"");
-        props.setProperty("disableBossBar", String.valueOf(tpaDisableBossBar));
     }
 
     public int tpaInit(CommandContext<ServerCommandSource> ctx, ServerPlayerEntity tTo) throws CommandSyntaxException {
@@ -267,7 +172,7 @@ public class FabricTPA implements ModInitializer {
 
         if (checkCooldown(tFrom)) return 1;
 
-        TPARequest tr = new TPARequest(tFrom, tTo, false);
+        TPARequest tr = new TPARequest(tFrom, tTo, false, (int) config.getValue("timeout") * 1000);
         if (activeTPA.stream().anyMatch(tpaRequest -> tpaRequest.equals(tr))) {
             tFrom.sendMessage(new LiteralText("There is already an ongoing request like this!").formatted(Formatting.RED), false);
             return 1;
@@ -287,7 +192,7 @@ public class FabricTPA implements ModInitializer {
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + tTo.getName().asString()))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpacancel " + tTo.getName().asString())))
                                         .withColor(Formatting.GOLD)))
-                        .append(new LiteralText("\nThis request will timeout in " + tpaTimeoutSeconds + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
+                        .append(new LiteralText("\nThis request will timeout in " + config.getValue("timeout") + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
 
         tTo.sendMessage(
@@ -303,7 +208,7 @@ public class FabricTPA implements ModInitializer {
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + tFrom.getName().asString()))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpadeny " + tFrom.getName().asString())))
                                         .withColor(Formatting.GOLD)))
-                        .append(new LiteralText("\nThis request will timeout in " + tpaTimeoutSeconds + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
+                        .append(new LiteralText("\nThis request will timeout in " + config.getValue("timeout") + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
         return 1;
     }
@@ -318,7 +223,7 @@ public class FabricTPA implements ModInitializer {
 
         if (checkCooldown(tFrom)) return 1;
 
-        TPARequest tr = new TPARequest(tFrom, tTo, true);
+        TPARequest tr = new TPARequest(tFrom, tTo, true, (int) config.getValue("timeout") * 1000);
         if (activeTPA.stream().anyMatch(tpaRequest -> tpaRequest.equals(tr))) {
             tTo.sendMessage(new LiteralText("There is already an ongoing request like this!").formatted(Formatting.RED), false);
             return 1;
@@ -338,7 +243,7 @@ public class FabricTPA implements ModInitializer {
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + tFrom.getName().asString()))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpacancel " + tFrom.getName().asString())))
                                         .withColor(Formatting.GOLD)))
-                        .append(new LiteralText("\nThis request will timeout in " + tpaTimeoutSeconds + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
+                        .append(new LiteralText("\nThis request will timeout in " + config.getValue("timeout") + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
 
         tFrom.sendMessage(
@@ -354,7 +259,7 @@ public class FabricTPA implements ModInitializer {
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + tTo.getName().asString()))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpadeny " + tTo.getName().asString())))
                                         .withColor(Formatting.GOLD)))
-                        .append(new LiteralText("\nThis request will timeout in " + tpaTimeoutSeconds + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
+                        .append(new LiteralText("\nThis request will timeout in " + config.getValue("timeout") + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
         return 1;
     }
@@ -362,8 +267,8 @@ public class FabricTPA implements ModInitializer {
     private boolean checkCooldown(ServerPlayerEntity tFrom) {
         if (recentRequests.containsKey(tFrom.getUuid())) {
             long diff = Instant.now().getEpochSecond() - recentRequests.get(tFrom.getUuid());
-            if (diff < tpaCooldownSeconds) {
-                tFrom.sendMessage(new LiteralText("You cannot make a request for ").append(String.valueOf(tpaCooldownSeconds - diff))
+            if (diff < (int) config.getValue("cooldown")) {
+                tFrom.sendMessage(new LiteralText("You cannot make a request for ").append(String.valueOf((int) config.getValue("cooldown") - diff))
                         .append(" more seconds!").formatted(Formatting.RED), false);
                 return true;
             }
@@ -371,13 +276,20 @@ public class FabricTPA implements ModInitializer {
         return false;
     }
 
+    private enum TPAAction {
+        ACCEPT, DENY, CANCEL
+    }
 
-    private TPARequest getTPARequest(ServerPlayerEntity rFrom, ServerPlayerEntity rTo) {
+    private TPARequest getTPARequest(ServerPlayerEntity rFrom, ServerPlayerEntity rTo, TPAAction action) {
         Optional<TPARequest> otr = activeTPA.stream()
                 .filter(tpaRequest -> tpaRequest.rFrom.equals(rFrom) && tpaRequest.rTo.equals(rTo)).findFirst();
 
         if (!otr.isPresent()) {
-            rTo.sendMessage(new LiteralText("Something went wrong!").formatted(Formatting.RED), false);
+            if (action == TPAAction.CANCEL) {
+                rFrom.sendMessage(new LiteralText("No ongoing request!").formatted(Formatting.RED), false);
+            } else {
+                rTo.sendMessage(new LiteralText("No ongoing request!").formatted(Formatting.RED), false);
+            }
             return null;
         }
 
@@ -407,92 +319,30 @@ public class FabricTPA implements ModInitializer {
             rFrom = candidates[0].rFrom;
         }
 
-        TPARequest tr = getTPARequest(rFrom, rTo);
+        TPARequest tr = getTPARequest(rFrom, rTo, TPAAction.ACCEPT);
         if (tr == null) return 1;
-        Timer timer = new Timer();
-        final double[] counter = {tpaStandStillSeconds};
-        final Vec3d[] lastPos = {tr.tFrom.getPos()};
-        CommandBossBar standStillBar = null;
-        if (!tpaDisableBossBar) {
-            standStillBar = rTo.server.getBossBarManager().add(new Identifier("standstill"), LiteralText.EMPTY);
-            standStillBar.addPlayer(tr.tFrom);
-            standStillBar.setColor(BossBar.Color.PINK);
-        }
-        if (pre21w08a) {
-            tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
-        } else {
-            FabricTPAFixTitles.setFade(tr.tFrom, 0, 10, 5);
-        }
-        CommandBossBar finalStandStillBar = standStillBar;
-        timer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                if (counter[0] == 0) {
-                    tr.tFrom.teleport(tr.tTo.getServerWorld(), tr.tTo.getX(), tr.tTo.getY(), tr.tTo.getZ(), tr.tTo.yaw, tr.tTo.pitch);
-                    if (!tpaDisableBossBar && finalStandStillBar != null) {
-                        finalStandStillBar.removePlayer(tr.tFrom);
-                        rTo.server.getBossBarManager().remove(finalStandStillBar);
-                    } else {
-                        tr.tFrom.sendMessage(new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE), true);
-                    }
-                    new Timer().schedule(new TimerTask() {
-                        @Override
-                        public void run() {
-                            if (pre21w08a) {
-                                tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.RESET, null));
-                            } else {
-                                FabricTPAFixTitles.clearTitle(tr.tFrom);
-                            }
-                        }
-                    }, 500);
-                    switch (tpaCooldownMode) {
-                        case BothUsers:
-                            recentRequests.put(tr.tFrom.getUuid(), Instant.now().getEpochSecond());
-                            recentRequests.put(tr.tTo.getUuid(), Instant.now().getEpochSecond());
-                            break;
-                        case WhoInitiated:
-                            recentRequests.put(tr.rFrom.getUuid(), Instant.now().getEpochSecond());
-                            break;
-                        case WhoTeleported:
-                            recentRequests.put(tr.tFrom.getUuid(), Instant.now().getEpochSecond());
-                            break;
-                    }
-                    timer.cancel();
-                    return;
-                }
-
-                Vec3d currPos = tr.tFrom.getPos();
-                if (lastPos[0].equals(currPos)) {
-                    counter[0] -= .25;
-                } else {
-                    lastPos[0] = currPos;
-                    counter[0] = tpaStandStillSeconds;
-                }
-
-                if (!tpaDisableBossBar && finalStandStillBar != null) {
-                    finalStandStillBar.setPercent((float) (counter[0] / tpaStandStillSeconds));
-                } else {
-                    tr.tFrom.sendMessage(new LiteralText("Stand still for ").formatted(Formatting.LIGHT_PURPLE)
-                            .append(new LiteralText(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
-                            .append(new LiteralText(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
-                }
-                if (pre21w08a) {
-                    tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.SUBTITLE,
-                            new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC)));
-                    tr.tFrom.networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.TITLE,
-                            new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
-                } else {
-                    FabricTPAFixTitles.setSubTitle(tr.tFrom, new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC));
-                    FabricTPAFixTitles.setTitle(tr.tFrom, new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD));
-                }
+        TeleportUtils.genericTeleport((boolean) config.getValue("bossbar"), (int) config.getValue("stand-still"), rFrom, () -> {
+            if (tr.tFrom.removed || tr.tTo.removed) tr.refreshPlayers();
+            tr.tFrom.teleport(tr.tTo.getServerWorld(), tr.tTo.getX(), tr.tTo.getY(), tr.tTo.getZ(), tr.tTo.yaw, tr.tTo.pitch);
+            switch ((TPACooldownMode) config.getValue("cooldown-mode")) {
+                case BothUsers:
+                    recentRequests.put(tr.tFrom.getUuid(), Instant.now().getEpochSecond());
+                    recentRequests.put(tr.tTo.getUuid(), Instant.now().getEpochSecond());
+                    break;
+                case WhoInitiated:
+                    recentRequests.put(tr.rFrom.getUuid(), Instant.now().getEpochSecond());
+                    break;
+                case WhoTeleported:
+                    recentRequests.put(tr.tFrom.getUuid(), Instant.now().getEpochSecond());
+                    break;
             }
-        }, 0, 250);
+        });
+
         tr.cancelTimeout();
         activeTPA.remove(tr);
         tr.rTo.sendMessage(new LiteralText("You have accepted the teleport request!"), false);
         tr.rFrom.sendMessage(new LiteralText(tr.rTo.getName().asString()).formatted(Formatting.AQUA)
                 .append(new LiteralText(" has accepted the teleportation request!").formatted(Formatting.LIGHT_PURPLE)), false);
-
         return 1;
     }
 
@@ -520,7 +370,7 @@ public class FabricTPA implements ModInitializer {
             rFrom = candidates[0].rFrom;
         }
 
-        TPARequest tr = getTPARequest(rFrom, rTo);
+        TPARequest tr = getTPARequest(rFrom, rTo, TPAAction.DENY);
         if (tr == null) return 1;
         tr.cancelTimeout();
         activeTPA.remove(tr);
@@ -553,7 +403,7 @@ public class FabricTPA implements ModInitializer {
             rTo = candidates[0].rFrom;
         }
 
-        TPARequest tr = getTPARequest(rFrom, rTo);
+        TPARequest tr = getTPARequest(rFrom, rTo, TPAAction.CANCEL);
         if (tr == null) return 1;
         tr.cancelTimeout();
         activeTPA.remove(tr);
@@ -576,17 +426,17 @@ public class FabricTPA implements ModInitializer {
         ServerPlayerEntity rTo;
 
         boolean tpaHere;
-        long time;
+        long timeout;
 
         Timer timer;
 
-        public TPARequest(ServerPlayerEntity tFrom, ServerPlayerEntity tTo, boolean tpaHere) {
+        public TPARequest(ServerPlayerEntity tFrom, ServerPlayerEntity tTo, boolean tpaHere, int timeoutMS) {
             this.tFrom = tFrom;
             this.tTo = tTo;
             this.tpaHere = tpaHere;
+            this.timeout = timeoutMS;
             this.rFrom = tpaHere ? tTo : tFrom;
             this.rTo = tpaHere ? tFrom : tTo;
-            this.time = System.currentTimeMillis();
         }
 
         void setTimeoutCallback(Timeout callback) {
@@ -596,7 +446,7 @@ public class FabricTPA implements ModInitializer {
                 public void run() {
                     callback.onTimeout();
                 }
-            }, 60000);
+            }, timeout);
         }
 
         void cancelTimeout() {
@@ -625,6 +475,14 @@ public class FabricTPA implements ModInitializer {
                     ", rTo=" + rTo +
                     ", tpaHere=" + tpaHere +
                     '}';
+        }
+
+        public void refreshPlayers() {
+            this.tFrom = tFrom.server.getPlayerManager().getPlayer(tFrom.getUuid());
+            this.tTo = tTo.server.getPlayerManager().getPlayer(tTo.getUuid());
+            this.rFrom = this.tpaHere ? tTo : tFrom;
+            this.rTo = this.tpaHere ? tFrom : tTo;
+            assert tFrom != null && tTo != null;
         }
     }
 
