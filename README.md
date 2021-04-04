@@ -15,7 +15,12 @@ All commands except `/tpaconfig` don't require OP permissions. They're meant for
 `/tpaaccept [<player>]` - Accept a tpa or tpahere request you've received, argument required if multiple ongoing  
 `/tpadeny [<player>]` - Deny a tpa or tpahere request you've received, argument required if multiple ongoing
 
-`/tpaconfig [<option> [<value>]]` - Get/Set config options, more info below (Requres OP / permission level 4)
+`/tpaconfig [<option> [<value>]]` - Get/Set config options, more info below (Requres OP permission level 2)
+
+## LuckPers / fabric-permission-api
+There are only 2 permissions:
+- `fabrictpa.tpa` allows players to execute the base commands
+- `fabrictpa.config` allows players to edit the config using the `/tpaconfig` command
 
 ## Configuration
 Configuration is done through `/tpaconfig`. There are currently 5 configurable options.  
