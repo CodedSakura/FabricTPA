@@ -2,6 +2,9 @@ package eu.codedsakura.mods;
 
 import net.minecraft.entity.boss.BossBar;
 import net.minecraft.entity.boss.CommandBossBar;
+import net.minecraft.network.packet.s2c.play.ClearTitleS2CPacket;
+import net.minecraft.network.packet.s2c.play.SubtitleS2CPacket;
+import net.minecraft.network.packet.s2c.play.TitleFadeS2CPacket;
 import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -36,7 +39,7 @@ public class TeleportUtils {
 //                newBossBar.setColor(commandBossBar.getColor());
 //            });
         }
-        who.networkHandler.sendPacket(new TitleS2CPacket(0, 10, 5));
+        who.networkHandler.sendPacket(new TitleFadeS2CPacket(0, 10, 5));
         CommandBossBar finalStandStillBar = standStillBar;
 
         final ServerPlayerEntity[] whoFinal = {who};
@@ -54,7 +57,7 @@ public class TeleportUtils {
                     new Timer().schedule(new TimerTask() {
                         @Override
                         public void run() {
-                            whoFinal[0].networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.RESET, null));
+                            whoFinal[0].networkHandler.sendPacket(new ClearTitleS2CPacket(true));
                         }
                     }, 500);
                     timer.cancel();
@@ -63,7 +66,7 @@ public class TeleportUtils {
                 }
 
                 Vec3d currPos = whoFinal[0].getPos();
-                if (whoFinal[0].removed) {
+                if (whoFinal[0].isRemoved()) {
                     whoFinal[0] = server.getPlayerManager().getPlayer(whoFinal[0].getUuid());
                     assert whoFinal[0] != null;
                 } else if (lastPos[0].equals(currPos)) {
@@ -80,10 +83,10 @@ public class TeleportUtils {
                             .append(new LiteralText(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
                             .append(new LiteralText(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
                 }
-                whoFinal[0].networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.SUBTITLE,
-                        new LiteralText("Please stand still...").formatted(Formatting.RED, Formatting.ITALIC)));
-                whoFinal[0].networkHandler.sendPacket(new TitleS2CPacket(TitleS2CPacket.Action.TITLE,
-                        new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
+                whoFinal[0].networkHandler.sendPacket(new SubtitleS2CPacket(new LiteralText("Please stand still...")
+                        .formatted(Formatting.RED, Formatting.ITALIC)));
+                whoFinal[0].networkHandler.sendPacket(new TitleS2CPacket(new LiteralText("Teleporting!")
+                        .formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
             }
         }, 0, 250);
     }

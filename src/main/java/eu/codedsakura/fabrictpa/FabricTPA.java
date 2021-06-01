@@ -308,8 +308,8 @@ public class FabricTPA implements ModInitializer {
         TPARequest tr = getTPARequest(rFrom, rTo, TPAAction.ACCEPT);
         if (tr == null) return 1;
         TeleportUtils.genericTeleport((boolean) config.getValue("bossbar"), (int) config.getValue("stand-still"), rFrom, () -> {
-            if (tr.tFrom.removed || tr.tTo.removed) tr.refreshPlayers();
-            tr.tFrom.teleport(tr.tTo.getServerWorld(), tr.tTo.getX(), tr.tTo.getY(), tr.tTo.getZ(), tr.tTo.yaw, tr.tTo.pitch);
+            if (tr.tFrom.isRemoved() || tr.tTo.isRemoved()) tr.refreshPlayers();
+            tr.tFrom.teleport(tr.tTo.getServerWorld(), tr.tTo.getX(), tr.tTo.getY(), tr.tTo.getZ(), tr.tTo.getYaw(), tr.tTo.getPitch());
             switch ((TPACooldownMode) config.getValue("cooldown-mode")) {
                 case BothUsers:
                     recentRequests.put(tr.tFrom.getUuid(), Instant.now().getEpochSecond());
