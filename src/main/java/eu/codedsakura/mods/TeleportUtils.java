@@ -23,7 +23,7 @@ public class TeleportUtils {
 //            Collection<CommandBossBar> bossBars = server.getBossBarManager().getAll();
 //            bossBars.forEach(commandBossBar -> server.getBossBarManager().remove(commandBossBar));
 
-            standStillBar = server.getBossBarManager().add(new Identifier("standstill::" + who.getUuidAsString()), LiteralText.EMPTY);
+            standStillBar = server.getBossBarManager().add(new Identifier("standstill-" + who.getUuidAsString()), LiteralText.EMPTY);
             standStillBar.addPlayer(who);
             standStillBar.setColor(BossBar.Color.PINK);
 
