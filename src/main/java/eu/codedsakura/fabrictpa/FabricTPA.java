@@ -12,7 +12,6 @@ import me.lucko.fabric.api.permissions.v0.Permissions;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.SharedConstants;
 import net.minecraft.command.argument.EntityArgumentType;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.network.ServerPlayerEntity;
@@ -42,20 +41,7 @@ public class FabricTPA implements ModInitializer {
 
     private final ArrayList<TPARequest> activeTPA = new ArrayList<>();
     private final HashMap<UUID, Long> recentRequests = new HashMap<>();
-    public static final boolean pre21w08a = determineVersion();
     private ConfigUtils config;
-
-    /**
-     * Determines the version of minecraft
-     *
-     * @return true if version is before 21w08a, otherwise false
-     */
-    private static boolean determineVersion() {
-        String version = SharedConstants.getGameVersion().getName();
-        return (version.startsWith("21w0") && !(version.endsWith("8a") || version.endsWith("8b"))) ||
-                (version.startsWith("20w")) ||
-                (version.startsWith("1.16"));
-    }
 
     @Nullable
     private static CompletableFuture<Suggestions> filterSuggestionsByInput(SuggestionsBuilder builder, List<String> values) {
@@ -388,7 +374,7 @@ public class FabricTPA implements ModInitializer {
             candidates = activeTPA.stream().filter(tpaRequest -> tpaRequest.rFrom.equals(rFrom)).toArray(TPARequest[]::new);
             if (candidates.length > 1) {
                 MutableText text = new LiteralText("You currently have multiple active teleport requests! Please specify which request to cancel.\n").formatted(Formatting.LIGHT_PURPLE);
-                Arrays.stream(candidates).map(tpaRequest -> tpaRequest.rFrom.getName().asString()).forEach(name ->
+                Arrays.stream(candidates).map(tpaRequest -> tpaRequest.rTo.getName().asString()).forEach(name ->
                         text.append(new LiteralText(name).styled(s ->
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + name))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new LiteralText("/tpacancel " + name)))
@@ -400,14 +386,15 @@ public class FabricTPA implements ModInitializer {
                 rFrom.sendMessage(new LiteralText("You currently don't have any teleport requests!").formatted(Formatting.RED), false);
                 return 1;
             }
-            rTo = candidates[0].rFrom;
+            rTo = candidates[0].rTo;
         }
 
+        System.out.printf("%s -> %s\n", rFrom.getName().asString(), rTo.getName().asString());
         TPARequest tr = getTPARequest(rFrom, rTo, TPAAction.CANCEL);
         if (tr == null) return 1;
         tr.cancelTimeout();
         activeTPA.remove(tr);
-        tr.rFrom.sendMessage(new LiteralText("You have cancelled the teleport request!"), false);
+        tr.rFrom.sendMessage(new LiteralText("You have cancelled the teleport request!").formatted(Formatting.RED), false);
         tr.rTo.sendMessage(new LiteralText(tr.rFrom.getName().asString()).formatted(Formatting.AQUA)
                 .append(new LiteralText(" has cancelled the teleportation request!").formatted(Formatting.RED)), false);
         return 1;

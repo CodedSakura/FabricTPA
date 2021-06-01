@@ -1,5 +1,5 @@
 plugins {
-    id 'fabric-loom' version '0.5-SNAPSHOT'
+    id 'fabric-loom' version '0.8-SNAPSHOT'
     id 'maven-publish'
 }
 
@@ -11,9 +11,6 @@ version = project.mod_version
 group = project.maven_group
 
 repositories {
-    maven {
-        url = "https://mymavenrepo.com/repo/4ORcMjxPdDAGU4bCTMnc/"
-    }
     maven { url 'https://oss.sonatype.org/content/repositories/snapshots' }
 }
 
@@ -29,20 +26,14 @@ dependencies {
     // PSA: Some older mods, compiled on Loom 0.2.1, might have outdated Maven POMs.
     // You may need to force-disable transitiveness on them.
 
-    modImplementation(include("us.spaceclouds:FabricTPAFixTitles:0.1.2"))
     modImplementation(include('me.lucko:fabric-permissions-api:0.1-SNAPSHOT'))
 }
 
 processResources {
     inputs.property "version", project.version
 
-    from(sourceSets.main.resources.srcDirs) {
-        include "fabric.mod.json"
+    filesMatching("fabric.mod.json") {
         expand "version": project.version
-    }
-
-    from(sourceSets.main.resources.srcDirs) {
-        exclude "fabric.mod.json"
     }
 }
 
