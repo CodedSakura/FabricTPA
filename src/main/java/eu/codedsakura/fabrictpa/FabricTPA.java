@@ -57,7 +57,7 @@ public class FabricTPA implements ModInitializer {
                 activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().asString()),
                 activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().asString())
         ).collect(Collectors.toList());
-        List<String> others = Arrays.stream(scs.getMinecraftServer().getPlayerNames())
+        List<String> others = Arrays.stream(scs.getServer().getPlayerNames())
                 .filter(s -> !s.equals(scs.getName()) && !activeTargets.contains(s))
                 .collect(Collectors.toList());
         return filterSuggestionsByInput(builder, others);
@@ -270,7 +270,7 @@ public class FabricTPA implements ModInitializer {
         Optional<TPARequest> otr = activeTPA.stream()
                 .filter(tpaRequest -> tpaRequest.rFrom.equals(rFrom) && tpaRequest.rTo.equals(rTo)).findFirst();
 
-        if (!otr.isPresent()) {
+        if (otr.isEmpty()) {
             if (action == TPAAction.CANCEL) {
                 rFrom.sendMessage(new LiteralText("No ongoing request!").formatted(Formatting.RED), false);
             } else {
@@ -309,18 +309,14 @@ public class FabricTPA implements ModInitializer {
         if (tr == null) return 1;
         TeleportUtils.genericTeleport((boolean) config.getValue("bossbar"), (int) config.getValue("stand-still"), rFrom, () -> {
             if (tr.tFrom.isRemoved() || tr.tTo.isRemoved()) tr.refreshPlayers();
-            tr.tFrom.teleport(tr.tTo.getServerWorld(), tr.tTo.getX(), tr.tTo.getY(), tr.tTo.getZ(), tr.tTo.getYaw(), tr.tTo.getPitch());
+            tr.tFrom.teleport(tr.tTo.getWorld(), tr.tTo.getX(), tr.tTo.getY(), tr.tTo.getZ(), tr.tTo.getYaw(), tr.tTo.getPitch());
             switch ((TPACooldownMode) config.getValue("cooldown-mode")) {
-                case BothUsers:
+                case BothUsers -> {
                     recentRequests.put(tr.tFrom.getUuid(), Instant.now().getEpochSecond());
                     recentRequests.put(tr.tTo.getUuid(), Instant.now().getEpochSecond());
-                    break;
-                case WhoInitiated:
-                    recentRequests.put(tr.rFrom.getUuid(), Instant.now().getEpochSecond());
-                    break;
-                case WhoTeleported:
-                    recentRequests.put(tr.tFrom.getUuid(), Instant.now().getEpochSecond());
-                    break;
+                }
+                case WhoInitiated -> recentRequests.put(tr.rFrom.getUuid(), Instant.now().getEpochSecond());
+                case WhoTeleported -> recentRequests.put(tr.tFrom.getUuid(), Instant.now().getEpochSecond());
             }
         });
 

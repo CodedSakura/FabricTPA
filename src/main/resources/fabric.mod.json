@@ -24,9 +24,9 @@
   },
   "mixins": [],
   "depends": {
-    "fabricloader": ">=0.10.6+build.214",
+    "fabricloader": "*",
     "fabric": "*",
-    "minecraft": "1.17.x",
+    "minecraft": "1.18.x",
     "fabric-permissions-api-v0": "*"
   }
 }
