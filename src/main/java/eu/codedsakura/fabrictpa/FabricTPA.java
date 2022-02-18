@@ -8,7 +8,7 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import eu.codedsakura.mods.ConfigUtils;
 import eu.codedsakura.mods.TeleportUtils;
-import me.lucko.fabric.api.permissions.v0.Permissions;
+import eu.codedsakura.mods.fpapiutils.FPAPIUtilsWrapper;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v1.CommandRegistrationCallback;
 import net.fabricmc.loader.api.FabricLoader;
@@ -56,7 +56,7 @@ public class FabricTPA implements ModInitializer {
         List<String> activeTargets = Stream.concat(
                 activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().asString()),
                 activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().asString())
-        ).collect(Collectors.toList());
+        ).toList();
         List<String> others = Arrays.stream(scs.getServer().getPlayerNames())
                 .filter(s -> !s.equals(scs.getName()) && !activeTargets.contains(s))
                 .collect(Collectors.toList());
@@ -116,34 +116,34 @@ public class FabricTPA implements ModInitializer {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, dedicated) -> {
             dispatcher.register(literal("tpa")
-                    .requires(Permissions.require("fabrictpa.tpa", true))
+                    .requires(FPAPIUtilsWrapper.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPAInitSuggestions)
                             .executes(ctx -> tpaInit(ctx, getPlayer(ctx, "target")))));
 
             dispatcher.register(literal("tpahere")
-                    .requires(Permissions.require("fabrictpa.tpa", true))
+                    .requires(FPAPIUtilsWrapper.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPAInitSuggestions)
                             .executes(ctx -> tpaHere(ctx, getPlayer(ctx, "target")))));
 
             dispatcher.register(literal("tpaaccept")
-                    .requires(Permissions.require("fabrictpa.tpa", true))
+                    .requires(FPAPIUtilsWrapper.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPATargetSuggestions)
                             .executes(ctx -> tpaAccept(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaAccept(ctx, null)));
 
             dispatcher.register(literal("tpadeny")
-                    .requires(Permissions.require("fabrictpa.tpa", true))
+                    .requires(FPAPIUtilsWrapper.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPATargetSuggestions)
                             .executes(ctx -> tpaDeny(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaDeny(ctx, null)));
 
             dispatcher.register(literal("tpacancel")
-                    .requires(Permissions.require("fabrictpa.tpa", true))
+                    .requires(FPAPIUtilsWrapper.require("fabrictpa.tpa", true))
                     .then(argument("target", EntityArgumentType.player()).suggests(this::getTPASenderSuggestions)
                             .executes(ctx -> tpaCancel(ctx, getPlayer(ctx, "target"))))
                     .executes(ctx -> tpaCancel(ctx, null)));
 
-            dispatcher.register(config.generateCommand("tpaconfig", Permissions.require("fabrictpa.config", 2)));
+            dispatcher.register(config.generateCommand("tpaconfig", FPAPIUtilsWrapper.require("fabrictpa.config", 2)));
         });
 
     }
