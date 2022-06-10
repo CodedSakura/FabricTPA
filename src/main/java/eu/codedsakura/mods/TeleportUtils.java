@@ -8,7 +8,7 @@ import net.minecraft.network.packet.s2c.play.TitleFadeS2CPacket;
 import net.minecraft.network.packet.s2c.play.TitleS2CPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
-import net.minecraft.text.LiteralText;
+import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.Vec3d;
@@ -26,7 +26,7 @@ public class TeleportUtils {
 //            Collection<CommandBossBar> bossBars = server.getBossBarManager().getAll();
 //            bossBars.forEach(commandBossBar -> server.getBossBarManager().remove(commandBossBar));
 
-            standStillBar = server.getBossBarManager().add(new Identifier("standstill-" + who.getUuidAsString()), LiteralText.EMPTY);
+            standStillBar = server.getBossBarManager().add(new Identifier("standstill-" + who.getUuidAsString()), Text.empty());
             standStillBar.addPlayer(who);
             standStillBar.setColor(BossBar.Color.PINK);
 
@@ -52,7 +52,7 @@ public class TeleportUtils {
                         finalStandStillBar.removePlayer(whoFinal[0]);
                         server.getBossBarManager().remove(finalStandStillBar);
                     } else {
-                        whoFinal[0].sendMessage(new LiteralText("Teleporting!").formatted(Formatting.LIGHT_PURPLE), true);
+                        whoFinal[0].sendMessage(Text.literal("Teleporting!").formatted(Formatting.LIGHT_PURPLE), true);
                     }
                     new Timer().schedule(new TimerTask() {
                         @Override
@@ -79,13 +79,13 @@ public class TeleportUtils {
                 if (bossBar) {
                     finalStandStillBar.setPercent((float) (counter[0] / standStillTime));
                 } else {
-                    whoFinal[0].sendMessage(new LiteralText("Stand still for ").formatted(Formatting.LIGHT_PURPLE)
-                            .append(new LiteralText(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
-                            .append(new LiteralText(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
+                    whoFinal[0].sendMessage(Text.literal("Stand still for ").formatted(Formatting.LIGHT_PURPLE)
+                            .append(Text.literal(Integer.toString((int) Math.floor(counter[0] + 1))).formatted(Formatting.GOLD))
+                            .append(Text.literal(" more seconds!").formatted(Formatting.LIGHT_PURPLE)), true);
                 }
-                whoFinal[0].networkHandler.sendPacket(new SubtitleS2CPacket(new LiteralText("Please stand still...")
+                whoFinal[0].networkHandler.sendPacket(new SubtitleS2CPacket(Text.literal("Please stand still...")
                         .formatted(Formatting.RED, Formatting.ITALIC)));
-                whoFinal[0].networkHandler.sendPacket(new TitleS2CPacket(new LiteralText("Teleporting!")
+                whoFinal[0].networkHandler.sendPacket(new TitleS2CPacket(Text.literal("Teleporting!")
                         .formatted(Formatting.LIGHT_PURPLE, Formatting.BOLD)));
             }
         }, 0, 250);

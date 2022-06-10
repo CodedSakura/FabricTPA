@@ -7,7 +7,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.TranslatableText;
+import net.minecraft.text.Text;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -68,19 +68,19 @@ public class ConfigUtils {
                 literal(commandName).requires(requirement)
                         .executes(ctx -> {
                             values.stream().filter(v -> v.command != null).forEach(value ->
-                                    ctx.getSource().sendFeedback(new TranslatableText(value.command.getterText, value.value), false));
+                                    ctx.getSource().sendFeedback(Text.translatable(value.command.getterText, value.value), false));
                             return 1;
                         });
         values.stream().filter(v -> v.command != null).forEach(value ->
                 out.then(literal(value.name)
                         .executes(ctx -> {
-                            ctx.getSource().sendFeedback(new TranslatableText(value.command.getterText, value.value), false);
+                            ctx.getSource().sendFeedback(Text.translatable(value.command.getterText, value.value), false);
                             return 1;
                         })
                         .then(argument(value.name, value.getArgumentType()).suggests(value.suggestions)
                                 .executes(ctx -> {
                                     value.value = value.parseArgumentValue(ctx);
-                                    ((CommandContext<ServerCommandSource>) ctx).getSource().sendFeedback(new TranslatableText(value.command.setterText, value.value), true);
+                                    ((CommandContext<ServerCommandSource>) ctx).getSource().sendFeedback(Text.translatable(value.command.setterText, value.value), true);
                                     this.save();
                                     return 1;
                                 }))));
