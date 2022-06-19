@@ -54,8 +54,8 @@ public class FabricTPA implements ModInitializer {
         ServerCommandSource scs = context.getSource();
 
         List<String> activeTargets = Stream.concat(
-                activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().toString()),
-                activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().toString())
+                activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getEntityName()),
+                activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getEntityName())
         ).toList();
         List<String> others = Arrays.stream(scs.getServer().getPlayerNames())
                 .filter(s -> !s.equals(scs.getName()) && !activeTargets.contains(s))
@@ -64,12 +64,12 @@ public class FabricTPA implements ModInitializer {
     }
 
     private CompletableFuture<Suggestions> getTPATargetSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
-        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getName().toString()).collect(Collectors.toList());
+        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rFrom.getEntityName()).collect(Collectors.toList());
         return filterSuggestionsByInput(builder, activeTargets);
     }
 
     private CompletableFuture<Suggestions> getTPASenderSuggestions(CommandContext<ServerCommandSource> context, SuggestionsBuilder builder) {
-        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getName().toString()).collect(Collectors.toList());
+        List<String> activeTargets = activeTPA.stream().map(tpaRequest -> tpaRequest.rTo.getEntityName()).collect(Collectors.toList());
         return filterSuggestionsByInput(builder, activeTargets);
     }
 
@@ -165,34 +165,34 @@ public class FabricTPA implements ModInitializer {
         }
         tr.setTimeoutCallback(() -> {
             activeTPA.remove(tr);
-            tFrom.sendMessage(Text.literal("Your teleport request to " + tTo.getName().toString() + " has timed out!").formatted(Formatting.RED), false);
-            tTo.sendMessage(Text.literal("Teleport request from " + tFrom.getName().toString() + " has timed out!").formatted(Formatting.RED), false);
+            tFrom.sendMessage(Text.literal("Your teleport request to " + tTo.getEntityName() + " has timed out!").formatted(Formatting.RED), false);
+            tTo.sendMessage(Text.literal("Teleport request from " + tFrom.getEntityName() + " has timed out!").formatted(Formatting.RED), false);
         });
         activeTPA.add(tr);
 
         tFrom.sendMessage(
                 Text.literal("You have requested to teleport to ").formatted(Formatting.LIGHT_PURPLE)
-                        .append(Text.literal(tTo.getName().toString()).formatted(Formatting.AQUA))
+                        .append(Text.literal(tTo.getEntityName()).formatted(Formatting.AQUA))
                         .append(Text.literal("\nTo cancel type ").formatted(Formatting.LIGHT_PURPLE))
                         .append(Text.literal("/tpacancel [<player>]").styled(s ->
-                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + tTo.getName().toString()))
-                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpacancel " + tTo.getName().toString())))
+                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + tTo.getEntityName()))
+                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpacancel " + tTo.getEntityName())))
                                         .withColor(Formatting.GOLD)))
                         .append(Text.literal("\nThis request will timeout in " + config.getValue("timeout") + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
 
         tTo.sendMessage(
-                Text.literal(tFrom.getName().toString()).formatted(Formatting.AQUA)
+                Text.literal(tFrom.getEntityName()).formatted(Formatting.AQUA)
                         .append(Text.literal(" has requested to teleport to you!").formatted(Formatting.LIGHT_PURPLE))
                         .append(Text.literal("\nTo accept type ").formatted(Formatting.LIGHT_PURPLE))
                         .append(Text.literal("/tpaaccept [<player>]").styled(s ->
-                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpaaccept " + tFrom.getName().toString()))
-                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpaaccept " + tFrom.getName().toString())))
+                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpaaccept " + tFrom.getEntityName()))
+                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpaaccept " + tFrom.getEntityName())))
                                         .withColor(Formatting.GOLD)))
                         .append(Text.literal("\nTo deny type ").formatted(Formatting.LIGHT_PURPLE))
                         .append(Text.literal("/tpadeny [<player>]").styled(s ->
-                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + tFrom.getName().toString()))
-                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpadeny " + tFrom.getName().toString())))
+                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + tFrom.getEntityName()))
+                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpadeny " + tFrom.getEntityName())))
                                         .withColor(Formatting.GOLD)))
                         .append(Text.literal("\nThis request will timeout in " + config.getValue("timeout") + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
@@ -216,34 +216,34 @@ public class FabricTPA implements ModInitializer {
         }
         tr.setTimeoutCallback(() -> {
             activeTPA.remove(tr);
-            tTo.sendMessage(Text.literal("Your teleport request for " + tFrom.getName().toString() + " to you has timed out!").formatted(Formatting.RED), false);
-            tFrom.sendMessage(Text.literal("Teleport request for you to " + tTo.getName().toString() + " has timed out!").formatted(Formatting.RED), false);
+            tTo.sendMessage(Text.literal("Your teleport request for " + tFrom.getEntityName() + " to you has timed out!").formatted(Formatting.RED), false);
+            tFrom.sendMessage(Text.literal("Teleport request for you to " + tTo.getEntityName() + " has timed out!").formatted(Formatting.RED), false);
         });
         activeTPA.add(tr);
 
         tTo.sendMessage(
                 Text.literal("You have requested for ").formatted(Formatting.LIGHT_PURPLE)
-                        .append(Text.literal(tFrom.getName().toString()).formatted(Formatting.AQUA))
+                        .append(Text.literal(tFrom.getEntityName()).formatted(Formatting.AQUA))
                         .append(Text.literal(" to teleport to you!\nTo cancel type ").formatted(Formatting.LIGHT_PURPLE))
                         .append(Text.literal("/tpacancel [<player>]").styled(s ->
-                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + tFrom.getName().toString()))
-                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpacancel " + tFrom.getName().toString())))
+                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + tFrom.getEntityName()))
+                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpacancel " + tFrom.getEntityName())))
                                         .withColor(Formatting.GOLD)))
                         .append(Text.literal("\nThis request will timeout in " + config.getValue("timeout") + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
 
         tFrom.sendMessage(
-                Text.literal(tTo.getName().toString()).formatted(Formatting.AQUA)
+                Text.literal(tTo.getEntityName()).formatted(Formatting.AQUA)
                         .append(Text.literal(" has requested for you to teleport to them!").formatted(Formatting.LIGHT_PURPLE))
                         .append(Text.literal("\nTo accept type ").formatted(Formatting.LIGHT_PURPLE))
                         .append(Text.literal("/tpaaccept [<player>]").styled(s ->
-                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpaaccept " + tTo.getName().toString()))
-                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpaaccept " + tTo.getName().toString())))
+                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpaaccept " + tTo.getEntityName()))
+                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpaaccept " + tTo.getEntityName())))
                                         .withColor(Formatting.GOLD)))
                         .append(Text.literal("\nTo deny type ").formatted(Formatting.LIGHT_PURPLE))
                         .append(Text.literal("/tpadeny [<player>]").styled(s ->
-                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + tTo.getName().toString()))
-                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpadeny " + tTo.getName().toString())))
+                                s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + tTo.getEntityName()))
+                                        .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpadeny " + tTo.getEntityName())))
                                         .withColor(Formatting.GOLD)))
                         .append(Text.literal("\nThis request will timeout in " + config.getValue("timeout") + " seconds.").formatted(Formatting.LIGHT_PURPLE)),
                 false);
@@ -290,7 +290,7 @@ public class FabricTPA implements ModInitializer {
             candidates = activeTPA.stream().filter(tpaRequest -> tpaRequest.rTo.equals(rTo)).toArray(TPARequest[]::new);
             if (candidates.length > 1) {
                 MutableText text = Text.literal("You currently have multiple active teleport requests! Please specify whose request to accept.\n").formatted(Formatting.LIGHT_PURPLE);
-                Arrays.stream(candidates).map(tpaRequest -> tpaRequest.rFrom.getName().toString()).forEach(name ->
+                Arrays.stream(candidates).map(tpaRequest -> tpaRequest.rFrom.getEntityName()).forEach(name ->
                         text.append(Text.literal(name).styled(s ->
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpaaccept " + name))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpaaccept " + name)))
@@ -323,7 +323,7 @@ public class FabricTPA implements ModInitializer {
         tr.cancelTimeout();
         activeTPA.remove(tr);
         tr.rTo.sendMessage(Text.literal("You have accepted the teleport request!"), false);
-        tr.rFrom.sendMessage(Text.literal(tr.rTo.getName().toString()).formatted(Formatting.AQUA)
+        tr.rFrom.sendMessage(Text.literal(tr.rTo.getEntityName()).formatted(Formatting.AQUA)
                 .append(Text.literal(" has accepted the teleportation request!").formatted(Formatting.LIGHT_PURPLE)), false);
         return 1;
     }
@@ -337,7 +337,7 @@ public class FabricTPA implements ModInitializer {
             candidates = activeTPA.stream().filter(tpaRequest -> tpaRequest.rTo.equals(rTo)).toArray(TPARequest[]::new);
             if (candidates.length > 1) {
                 MutableText text = Text.literal("You currently have multiple active teleport requests! Please specify whose request to deny.\n").formatted(Formatting.LIGHT_PURPLE);
-                Arrays.stream(candidates).map(tpaRequest -> tpaRequest.rFrom.getName().toString()).forEach(name ->
+                Arrays.stream(candidates).map(tpaRequest -> tpaRequest.rFrom.getEntityName()).forEach(name ->
                         text.append(Text.literal(name).styled(s ->
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpadeny " + name))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpadeny " + name)))
@@ -357,7 +357,7 @@ public class FabricTPA implements ModInitializer {
         tr.cancelTimeout();
         activeTPA.remove(tr);
         tr.rTo.sendMessage(Text.literal("You have cancelled the teleport request!"), false);
-        tr.rFrom.sendMessage(Text.literal(tr.rTo.getName().toString()).formatted(Formatting.AQUA)
+        tr.rFrom.sendMessage(Text.literal(tr.rTo.getEntityName()).formatted(Formatting.AQUA)
                 .append(Text.literal(" has cancelled the teleportation request!").formatted(Formatting.RED)), false);
         return 1;
     }
@@ -370,7 +370,7 @@ public class FabricTPA implements ModInitializer {
             candidates = activeTPA.stream().filter(tpaRequest -> tpaRequest.rFrom.equals(rFrom)).toArray(TPARequest[]::new);
             if (candidates.length > 1) {
                 MutableText text = Text.literal("You currently have multiple active teleport requests! Please specify which request to cancel.\n").formatted(Formatting.LIGHT_PURPLE);
-                Arrays.stream(candidates).map(tpaRequest -> tpaRequest.rTo.getName().toString()).forEach(name ->
+                Arrays.stream(candidates).map(tpaRequest -> tpaRequest.rTo.getEntityName()).forEach(name ->
                         text.append(Text.literal(name).styled(s ->
                                 s.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/tpacancel " + name))
                                         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Text.literal("/tpacancel " + name)))
@@ -385,13 +385,13 @@ public class FabricTPA implements ModInitializer {
             rTo = candidates[0].rTo;
         }
 
-        System.out.printf("%s -> %s\n", rFrom.getName().toString(), rTo.getName().toString());
+        System.out.printf("%s -> %s\n", rFrom.getEntityName(), rTo.getEntityName());
         TPARequest tr = getTPARequest(rFrom, rTo, TPAAction.CANCEL);
         if (tr == null) return 1;
         tr.cancelTimeout();
         activeTPA.remove(tr);
         tr.rFrom.sendMessage(Text.literal("You have cancelled the teleport request!").formatted(Formatting.RED), false);
-        tr.rTo.sendMessage(Text.literal(tr.rFrom.getName().toString()).formatted(Formatting.AQUA)
+        tr.rTo.sendMessage(Text.literal(tr.rFrom.getEntityName()).formatted(Formatting.AQUA)
                 .append(Text.literal(" has cancelled the teleportation request!").formatted(Formatting.RED)), false);
         return 1;
     }
